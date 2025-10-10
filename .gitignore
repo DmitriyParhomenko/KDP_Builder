@@ -44,6 +44,11 @@ node_modules/
 /interior.pdf
 cover.pdf
 
+# ML model weights
+*.pth
+*.safetensors
+*.ckpt
+
 # OS / thumbnail files
 Thumbs.db
 Desktop.ini

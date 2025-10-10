@@ -85,7 +85,9 @@ python main.py --help
 
 ## License
 
-MIT (suggested). Add a `LICENSE` file if you intend to open source.
+Code: MIT
+
+Models & dataset: “All Rights Reserved”
 
 ## Disclaimer
 
