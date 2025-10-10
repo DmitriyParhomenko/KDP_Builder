@@ -1,0 +1,49 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.venv/
+venv/
+env/
+
+# IDE & tooling
+.vscode/
+.idea/
+*.iml
+.mypy_cache/
+.pytest_cache/
+.cache/
+
+# Build & dist
+build/
+dist/
+.eggs/
+*.egg-info/
+*.egg
+wheels/
+
+# Logs & misc
+logs/
+*.log
+
+# Env files
+.env
+.env.*
+
+# Node (future web UI)
+node_modules/
+
+# Outputs (keep sample directories if added later)
+/interior.pdf
+cover.pdf
+
+# OS / thumbnail files
+Thumbs.db
+Desktop.ini
