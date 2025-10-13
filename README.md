@@ -85,6 +85,9 @@ python main.py --template habit --habit-rows 20 --habit-cols 7 --pages 2 --out o
 - `--grid-size-pt` Grid cell size (grid).
 - `--dot-step-pt`, `--dot-radius-pt` Dot spacing and radius (dot).
 - `--habit-rows`, `--habit-cols` Habit matrix size (habit).
+- `--page-numbers` Add page numbers on the outer side (mirrored even/odd).
+- `--header`, `--footer` Centered header/footer text within safe area.
+- `--header-font-size`, `--footer-font-size`, `--page-number-font-size` Typography controls for pagination.
 - `--validate-path` Validate an existing PDF and exit.
 - `--validate-trim` Trim key used for validation (defaults to `--trim`).
 
@@ -97,6 +100,19 @@ python main.py --help
 
 - Layouts are defined procedurally and rendered with ReportLab into vector PDFs compliant with typical KDP trims and margins.
 - The MVP now includes multiple templates (lined, grid, dot grid, habit tracker) with mirrored safe areas and optional gutter.
+
+## Pagination
+
+Add page numbers, header, and footer:
+
+```bash
+python main.py --trim 6x9 --pages 24 --template lined --gutter-pt 18 \
+  --page-numbers --header "My Journal" --footer "www.example.com" \
+  --header-font-size 12 --footer-font-size 10 --page-number-font-size 10 \
+  --out outputs/paginated_24.pdf
+```
+
+Page numbers render on the outer side (right on odd pages, left on even).
 
 ## Outputs directory
 
