@@ -24,9 +24,12 @@ import os
 @click.option("--header-font-size", "header_font_size", type=float, default=12.0, show_default=True, help="Header font size")
 @click.option("--footer-font-size", "footer_font_size", type=float, default=10.0, show_default=True, help="Footer font size")
 @click.option("--page-number-font-size", "page_number_font_size", type=float, default=10.0, show_default=True, help="Page number font size")
+@click.option("--set-trimbox", "set_trimbox", is_flag=True, default=False, help="Write TrimBox equal to the safe area for QA")
+@click.option("--set-bleedbox", "set_bleedbox", is_flag=True, default=False, help="Write BleedBox around TrimBox by --bleed-pt (clamped to MediaBox)")
+@click.option("--bleed-pt", "bleed_pt", type=float, default=0.0, show_default=True, help="Bleed amount in points (72pt = 1 inch)")
 @click.option("--validate-path", "validate_path", type=str, default=None, help="If provided, validates the given PDF and exits.")
 @click.option("--validate-trim", "validate_trim", type=str, default=None, help="Trim key to validate against (defaults to --trim if omitted).")
-def main(trim: str, pages: int, out_path: str, line_spacing_pt: float, line_weight_pt: float, gutter_pt: float, debug_safe_area: bool, template: str, grid_size_pt: float, dot_step_pt: float, dot_radius_pt: float, habit_rows: int, habit_cols: int, page_numbers: bool, header_text: str, footer_text: str, header_font_size: float, footer_font_size: float, page_number_font_size: float, validate_path: str | None, validate_trim: str | None):
+def main(trim: str, pages: int, out_path: str, line_spacing_pt: float, line_weight_pt: float, gutter_pt: float, debug_safe_area: bool, template: str, grid_size_pt: float, dot_step_pt: float, dot_radius_pt: float, habit_rows: int, habit_cols: int, page_numbers: bool, header_text: str, footer_text: str, header_font_size: float, footer_font_size: float, page_number_font_size: float, set_trimbox: bool, set_bleedbox: bool, bleed_pt: float, validate_path: str | None, validate_trim: str | None):
     # Validation mode
     if validate_path:
         vt = validate_trim or trim
@@ -68,6 +71,9 @@ def main(trim: str, pages: int, out_path: str, line_spacing_pt: float, line_weig
         header_font_size=header_font_size,
         footer_font_size=footer_font_size,
         page_number_font_size=page_number_font_size,
+        set_trimbox=set_trimbox,
+        set_bleedbox=set_bleedbox,
+        bleed_pt=bleed_pt,
     )
     click.echo(f"✅ Generated {out_path} with {pages} pages at trim {trim}")
 

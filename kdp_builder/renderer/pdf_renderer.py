@@ -9,6 +9,8 @@ from kdp_builder.renderer.templates import (
     draw_dot_grid_page,
     draw_habit_tracker_page,
 )
+from pypdf import PdfReader, PdfWriter
+from pypdf.generic import RectangleObject
 
 
 def generate_lined_pages(
@@ -31,6 +33,9 @@ def generate_lined_pages(
     header_font_size: float = 12.0,
     footer_font_size: float = 10.0,
     page_number_font_size: float = 10.0,
+    set_trimbox: bool = False,
+    set_bleedbox: bool = False,
+    bleed_pt: float = 0.0,
 ):
     if trim_key not in SIZES:
         raise ValueError(f"Unknown trim key '{trim_key}'. Available: {list(SIZES.keys())}")
@@ -108,3 +113,59 @@ def generate_lined_pages(
         c.showPage()
 
     c.save()
+
+    # Optionally set TrimBox/BleedBox for QA
+    if set_trimbox or set_bleedbox:
+        reader = PdfReader(out_path)
+        writer = PdfWriter()
+
+        width = conf["width"]
+        height = conf["height"]
+        m = conf["margin"]
+
+        for page_index, page in enumerate(reader.pages):
+            # Parity-aware safe area
+            is_odd = ((page_index + 1) % 2) == 1
+            inner = m["inner"] + gutter_pt
+            outer = m["outer"]
+            top = height - m["top"]
+            bottom = m["bottom"]
+            if is_odd:
+                left = inner
+                right = width - outer
+            else:
+                left = outer
+                right = width - inner
+
+            media = page.mediabox
+            # Clamp helper
+            def clamp(val, lo, hi):
+                return max(lo, min(hi, val))
+
+            if set_trimbox:
+                trim_rect = RectangleObject([
+                    clamp(left, media.left, media.right),
+                    clamp(bottom, media.bottom, media.top),
+                    clamp(right, media.left, media.right),
+                    clamp(top, media.bottom, media.top),
+                ])
+                page.trimbox = trim_rect
+
+            if set_bleedbox:
+                # Expand around trim or safe area by bleed_pt but keep within MediaBox
+                bx_left = (left if set_trimbox else media.left) - bleed_pt
+                bx_bottom = (bottom if set_trimbox else media.bottom) - bleed_pt
+                bx_right = (right if set_trimbox else media.right) + bleed_pt
+                bx_top = (top if set_trimbox else media.top) + bleed_pt
+                bleed_rect = RectangleObject([
+                    clamp(bx_left, media.left, media.right),
+                    clamp(bx_bottom, media.bottom, media.top),
+                    clamp(bx_right, media.left, media.right),
+                    clamp(bx_top, media.bottom, media.top),
+                ])
+                page.bleedbox = bleed_rect
+
+            writer.add_page(page)
+
+        with open(out_path, "wb") as f:
+            writer.write(f)

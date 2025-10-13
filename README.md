@@ -88,6 +88,9 @@ python main.py --template habit --habit-rows 20 --habit-cols 7 --pages 2 --out o
 - `--page-numbers` Add page numbers on the outer side (mirrored even/odd).
 - `--header`, `--footer` Centered header/footer text within safe area.
 - `--header-font-size`, `--footer-font-size`, `--page-number-font-size` Typography controls for pagination.
+- `--set-trimbox` Write TrimBox equal to the safe area (for QA in viewers that show boxes).
+- `--set-bleedbox` Write BleedBox around TrimBox by `--bleed-pt` (clamped to MediaBox).
+- `--bleed-pt` Bleed amount in points (72pt = 1 inch).
 - `--validate-path` Validate an existing PDF and exit.
 - `--validate-trim` Trim key used for validation (defaults to `--trim`).
 
@@ -113,6 +116,18 @@ python main.py --trim 6x9 --pages 24 --template lined --gutter-pt 18 \
 ```
 
 Page numbers render on the outer side (right on odd pages, left on even).
+
+## QA: TrimBox/BleedBox
+
+Optionally write TrimBox/BleedBox to the PDF for better QA in compatible viewers:
+
+```bash
+python main.py --trim 6x9 --pages 2 --template grid --grid-size-pt 18 \
+  --gutter-pt 18 --set-trimbox --set-bleedbox --bleed-pt 9 \
+  --out outputs/boxes.pdf
+```
+
+This sets TrimBox to the mirrored safe area and BleedBox to TrimBox expanded by `bleed-pt` (e.g., 9pt = 0.125").
 
 ## Outputs directory
 
