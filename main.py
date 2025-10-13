@@ -1,13 +1,15 @@
 import click
 from kdp_builder.renderer.pdf_renderer import generate_lined_pages
 from kdp_builder.validator.kdp_validator import validate_pdf
+from kdp_builder.cover.cover_renderer import generate_cover
+from kdp_builder.cover.cover_validator import validate_cover
 import os
 
 
 @click.command(help="Generate a simple lined interior PDF or validate an existing PDF for KDP sizing.")
 @click.option("--trim", type=str, default="6x9", show_default=True, help="Trim size key, e.g., 6x9")
 @click.option("--pages", type=click.IntRange(min=1), default=120, show_default=True, help="Number of interior pages")
-@click.option("--out", "out_path", type=str, default="outputs/interior.pdf", show_default=True, help="Output PDF path")
+@click.option("--out", "out_path", type=str, default="outputs/interior.pdf", show_default=True, help="Output PDF path (interior default: outputs/interior.pdf; cover default: outputs/cover.pdf)")
 @click.option("--line-spacing-pt", "line_spacing_pt", type=float, default=18.0, show_default=True, help="Line spacing in points (72pt = 1 inch)")
 @click.option("--line-weight-pt", "line_weight_pt", type=float, default=0.5, show_default=True, help="Stroke width in points (>=0.5pt for print)")
 @click.option("--gutter-pt", "gutter_pt", type=float, default=0.0, show_default=True, help="Extra inner margin added to binding side (odd/even pages handled)")
@@ -29,8 +31,31 @@ import os
 @click.option("--bleed-pt", "bleed_pt", type=float, default=0.0, show_default=True, help="Bleed amount in points (72pt = 1 inch)")
 @click.option("--validate-path", "validate_path", type=str, default=None, help="If provided, validates the given PDF and exits.")
 @click.option("--validate-trim", "validate_trim", type=str, default=None, help="Trim key to validate against (defaults to --trim if omitted).")
-def main(trim: str, pages: int, out_path: str, line_spacing_pt: float, line_weight_pt: float, gutter_pt: float, debug_safe_area: bool, template: str, grid_size_pt: float, dot_step_pt: float, dot_radius_pt: float, habit_rows: int, habit_cols: int, page_numbers: bool, header_text: str, footer_text: str, header_font_size: float, footer_font_size: float, page_number_font_size: float, set_trimbox: bool, set_bleedbox: bool, bleed_pt: float, validate_path: str | None, validate_trim: str | None):
+@click.option("--make-cover", "make_cover", is_flag=True, default=False, help="Generate a cover instead of an interior")
+@click.option("--cover-pages", "cover_pages", type=click.IntRange(min=1), default=120, show_default=True, help="Interior page count used to compute spine width")
+@click.option("--cover-paper", "cover_paper", type=click.Choice(["white", "cream", "color"], case_sensitive=False), default="white", show_default=True, help="Paper type for spine width calc")
+@click.option("--cover-bleed-pt", "cover_bleed_pt", type=float, default=9.0, show_default=True, help="Bleed for cover in points (9pt = 0.125 inch typical)")
+@click.option("--cover-title", "cover_title", type=str, default="", show_default=True, help="Front cover title")
+@click.option("--cover-subtitle", "cover_subtitle", type=str, default="", show_default=True, help="Front cover subtitle")
+@click.option("--cover-author", "cover_author", type=str, default="", show_default=True, help="Front cover author")
+@click.option("--validate-cover-path", "validate_cover_path", type=str, default=None, help="If provided, validates the given COVER PDF and exits (requires --trim, --cover-pages, --cover-paper, --cover-bleed-pt)")
+def main(trim: str, pages: int, out_path: str, line_spacing_pt: float, line_weight_pt: float, gutter_pt: float, debug_safe_area: bool, template: str, grid_size_pt: float, dot_step_pt: float, dot_radius_pt: float, habit_rows: int, habit_cols: int, page_numbers: bool, header_text: str, footer_text: str, header_font_size: float, footer_font_size: float, page_number_font_size: float, set_trimbox: bool, set_bleedbox: bool, bleed_pt: float, validate_path: str | None, validate_trim: str | None,
+         make_cover: bool, cover_pages: int, cover_paper: str, cover_bleed_pt: float, cover_title: str, cover_subtitle: str, cover_author: str, validate_cover_path: str | None):
     # Validation mode
+    if validate_cover_path:
+        report = validate_cover(validate_cover_path, trim, cover_pages, cover_paper.lower(), cover_bleed_pt)
+        click.echo(f"Cover validation for {validate_cover_path}")
+        click.echo(f"Expected size: {report.expected_width_pt:.2f} x {report.expected_height_pt:.2f} pt (spine {report.expected_spine_pt:.2f} pt)")
+        click.echo(f"Actual size:   {report.width_pt:.2f} x {report.height_pt:.2f} pt")
+        if not report.issues:
+            click.echo("✅ No issues found.")
+        else:
+            for iss in report.issues:
+                click.echo(f"{iss.level.upper()}: {iss.message}")
+        if not report.ok:
+            raise SystemExit(1)
+        return
+
     if validate_path:
         vt = validate_trim or trim
         report = validate_pdf(validate_path, vt)
@@ -48,6 +73,26 @@ def main(trim: str, pages: int, out_path: str, line_spacing_pt: float, line_weig
         return
 
     # Generation mode
+    if make_cover:
+        # Default output name if user did not change it
+        if out_path == "outputs/interior.pdf":
+            out_path = "outputs/cover.pdf"
+        out_dir = os.path.dirname(out_path)
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
+        generate_cover(
+            trim_key=trim,
+            page_count=cover_pages,
+            paper=cover_paper.lower(),
+            bleed_pt=cover_bleed_pt,
+            out_path=out_path,
+            title=cover_title,
+            subtitle=cover_subtitle,
+            author=cover_author,
+        )
+        click.echo(f"✅ Generated cover {out_path} for trim {trim}, pages {cover_pages}, paper {cover_paper}")
+        return
+
     out_dir = os.path.dirname(out_path)
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)

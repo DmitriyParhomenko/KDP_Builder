@@ -91,8 +91,16 @@ python main.py --template habit --habit-rows 20 --habit-cols 7 --pages 2 --out o
 - `--set-trimbox` Write TrimBox equal to the safe area (for QA in viewers that show boxes).
 - `--set-bleedbox` Write BleedBox around TrimBox by `--bleed-pt` (clamped to MediaBox).
 - `--bleed-pt` Bleed amount in points (72pt = 1 inch).
+- Cover generation:
+  - `--make-cover` Generate a cover instead of interior
+  - `--cover-pages` Interior page count for spine width
+  - `--cover-paper` Paper type: `white|cream|color`
+  - `--cover-bleed-pt` Cover bleed (points); e.g. 9pt = 0.125"
+  - `--cover-title`, `--cover-subtitle`, `--cover-author`
 - `--validate-path` Validate an existing PDF and exit.
 - `--validate-trim` Trim key used for validation (defaults to `--trim`).
+ - Cover validation:
+   - `--validate-cover-path` Validate a cover (requires `--trim`, `--cover-pages`, `--cover-paper`, `--cover-bleed-pt`).
 
 See help:
 ```bash
@@ -128,6 +136,23 @@ python main.py --trim 6x9 --pages 2 --template grid --grid-size-pt 18 \
 ```
 
 This sets TrimBox to the mirrored safe area and BleedBox to TrimBox expanded by `bleed-pt` (e.g., 9pt = 0.125").
+
+## Covers
+
+Generate a full-wrap cover (back + spine + front) with a simple placeholder layout:
+
+```bash
+python main.py --make-cover --trim 6x9 --cover-pages 120 --cover-paper white \
+  --cover-bleed-pt 9 --cover-title "My Planner" --cover-subtitle "Undated" \
+  --cover-author "D. Parhomenko" --out outputs/cover.pdf
+```
+
+Validate the cover against expected dimensions for the given trim/pages/paper/bleed:
+
+```bash
+python main.py --validate-cover-path outputs/cover.pdf \
+  --trim 6x9 --cover-pages 120 --cover-paper white --cover-bleed-pt 9
+```
 
 ## Outputs directory
 
