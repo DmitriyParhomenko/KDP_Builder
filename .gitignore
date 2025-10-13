@@ -41,7 +41,8 @@ logs/
 node_modules/
 
 # Outputs (keep sample directories if added later)
-/interior.pdf
+outputs/
+interior.pdf
 cover.pdf
 
 # ML model weights
