@@ -7,14 +7,17 @@ KDP Builder is a local-first toolkit for generating professional, print-ready in
 - **Vector interiors**: Crisp, scalable PDFs suitable for print.
 - **KDP-aware sizing**: Trim sizes and safe margins built-in (e.g., `6x9`).
 - **Fast CLI**: Generate 20–150+ page interiors in seconds.
-- **Extensible**: Add templates, validators, AI layout gen, and covers.
+- **Templates**: `lined`, `grid`, `dot`, `habit` templates available via CLI.
+- **Parity-aware safe area**: Even/odd pages mirror inner/outer margins; optional gutter.
+- **Extensible**: Add validators, AI layout gen, and covers.
 - **Local-first**: Works offline; no API keys required for the MVP.
 
 ## Project Structure
 
 - `main.py` — CLI entrypoint (Click-based).
 - `kdp_builder/config/sizes.py` — Trim sizes, margins, bleed flags.
-- `kdp_builder/renderer/pdf_renderer.py` — Vector rendering (lined pages).
+- `kdp_builder/renderer/pdf_renderer.py` — Vector rendering with multiple templates.
+- `kdp_builder/renderer/templates.py` — Template primitives (lined, grid, dot, habit).
 - `kdp_builder/__init__.py` — Package marker.
 
 Planned modules:
@@ -36,9 +39,9 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-3) Generate your first interior (6x9, 120 pages):
+3) Generate your first interior (6x9, 120 pages) — defaults to `outputs/interior.pdf`:
 ```bash
-python main.py --trim 6x9 --pages 120 --out interior.pdf
+python main.py --trim 6x9 --pages 120 --out outputs/interior.pdf
 ```
 
 4) Customize spacing and line weight:
@@ -46,13 +49,44 @@ python main.py --trim 6x9 --pages 120 --out interior.pdf
 python main.py --line-spacing-pt 20 --line-weight-pt 0.6 --out interior_dense.pdf
 ```
 
+## Templates
+
+Use `--template` and related flags:
+
+- **Lined** (default):
+```bash
+python main.py --template lined --pages 4 --gutter-pt 18
+```
+
+- **Grid**:
+```bash
+python main.py --template grid --grid-size-pt 18 --pages 2 --out outputs/grid.pdf
+```
+
+- **Dot grid**:
+```bash
+python main.py --template dot --dot-step-pt 18 --dot-radius-pt 0.6 --pages 2 --out outputs/dot.pdf
+```
+
+- **Habit tracker**:
+```bash
+python main.py --template habit --habit-rows 20 --habit-cols 7 --pages 2 --out outputs/habit.pdf
+```
+
 ## CLI Options
 
 - `--trim` Trim key (default: `6x9`). Defined in `kdp_builder/config/sizes.py`.
 - `--pages` Number of pages (default: `120`, min `1`).
-- `--out` Output PDF path (default: `interior.pdf`).
+- `--out` Output PDF path (default: `outputs/interior.pdf`).
 - `--line-spacing-pt` Line spacing in points (default: `18.0`).
 - `--line-weight-pt` Stroke width in points (default: `0.5`).
+- `--gutter-pt` Extra inner margin added to binding side (odd/even mirrored).
+- `--template` One of `lined`, `grid`, `dot`, `habit`.
+- `--grid-size-pt` Grid cell size (grid).
+- `--dot-step-pt`, `--dot-radius-pt` Dot spacing and radius (dot).
+- `--habit-rows`, `--habit-cols` Habit matrix size (habit).
+- `--validate-path` Validate an existing PDF and exit.
+- `--validate-trim` Trim key used for validation (defaults to `--trim`).
 
 See help:
 ```bash
@@ -62,7 +96,11 @@ python main.py --help
 ## How It Works
 
 - Layouts are defined procedurally and rendered with ReportLab into vector PDFs compliant with typical KDP trims and margins.
-- The MVP includes a lined-page renderer. Additional templates (grid, dot-grid, trackers) will be added.
+- The MVP now includes multiple templates (lined, grid, dot grid, habit tracker) with mirrored safe areas and optional gutter.
+
+## Outputs directory
+
+Generated files are written to `outputs/` (ignored by git). Override with `--out` if needed.
 
 ## Roadmap
 

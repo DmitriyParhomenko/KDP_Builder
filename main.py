@@ -10,9 +10,17 @@ import os
 @click.option("--out", "out_path", type=str, default="outputs/interior.pdf", show_default=True, help="Output PDF path")
 @click.option("--line-spacing-pt", "line_spacing_pt", type=float, default=18.0, show_default=True, help="Line spacing in points (72pt = 1 inch)")
 @click.option("--line-weight-pt", "line_weight_pt", type=float, default=0.5, show_default=True, help="Stroke width in points (>=0.5pt for print)")
+@click.option("--gutter-pt", "gutter_pt", type=float, default=0.0, show_default=True, help="Extra inner margin added to binding side (odd/even pages handled)")
+@click.option("--debug-safe-area", "debug_safe_area", is_flag=True, default=False, help="Draw dashed rectangle of the safe area on each page")
+@click.option("--template", type=click.Choice(["lined", "grid", "dot", "habit"], case_sensitive=False), default="lined", show_default=True, help="Interior template to render")
+@click.option("--grid-size-pt", "grid_size_pt", type=float, default=18.0, show_default=True, help="Grid cell size (grid template)")
+@click.option("--dot-step-pt", "dot_step_pt", type=float, default=18.0, show_default=True, help="Dot spacing (dot template)")
+@click.option("--dot-radius-pt", "dot_radius_pt", type=float, default=0.5, show_default=True, help="Dot radius (dot template)")
+@click.option("--habit-rows", "habit_rows", type=int, default=20, show_default=True, help="Rows for habit tracker (habit template)")
+@click.option("--habit-cols", "habit_cols", type=int, default=7, show_default=True, help="Columns for habit tracker (habit template)")
 @click.option("--validate-path", "validate_path", type=str, default=None, help="If provided, validates the given PDF and exits.")
 @click.option("--validate-trim", "validate_trim", type=str, default=None, help="Trim key to validate against (defaults to --trim if omitted).")
-def main(trim: str, pages: int, out_path: str, line_spacing_pt: float, line_weight_pt: float, validate_path: str | None, validate_trim: str | None):
+def main(trim: str, pages: int, out_path: str, line_spacing_pt: float, line_weight_pt: float, gutter_pt: float, debug_safe_area: bool, template: str, grid_size_pt: float, dot_step_pt: float, dot_radius_pt: float, habit_rows: int, habit_cols: int, validate_path: str | None, validate_trim: str | None):
     # Validation mode
     if validate_path:
         vt = validate_trim or trim
@@ -40,6 +48,14 @@ def main(trim: str, pages: int, out_path: str, line_spacing_pt: float, line_weig
         out_path=out_path,
         line_spacing=line_spacing_pt,
         line_weight=line_weight_pt,
+        gutter_pt=gutter_pt,
+        debug_safe_area=debug_safe_area,
+        template=template.lower(),
+        grid_size_pt=grid_size_pt,
+        dot_step_pt=dot_step_pt,
+        dot_radius_pt=dot_radius_pt,
+        habit_rows=habit_rows,
+        habit_cols=habit_cols,
     )
     click.echo(f"✅ Generated {out_path} with {pages} pages at trim {trim}")
 
