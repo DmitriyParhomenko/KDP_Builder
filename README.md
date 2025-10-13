@@ -1,4 +1,4 @@
-# KDP Builder — AI-Powered Low-Content Book Generator
+# KDP Builder
 
 KDP Builder is a local-first toolkit for generating professional, print-ready interiors (and soon covers) for KDP. It focuses on speed, repeatability, and 100% vector output using ReportLab. Start with a CLI to create lined journals, then expand into grids, trackers, and AI-generated layouts.
 
