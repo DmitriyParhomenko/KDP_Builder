@@ -25,6 +25,12 @@ def generate_lined_pages(
     dot_radius_pt: float = 0.5,
     habit_rows: int = 20,
     habit_cols: int = 7,
+    page_numbers: bool = False,
+    header_text: str = "",
+    footer_text: str = "",
+    header_font_size: float = 12.0,
+    footer_font_size: float = 10.0,
+    page_number_font_size: float = 10.0,
 ):
     if trim_key not in SIZES:
         raise ValueError(f"Unknown trim key '{trim_key}'. Available: {list(SIZES.keys())}")
@@ -71,6 +77,32 @@ def generate_lined_pages(
             c.setLineWidth(0.25)
             c.setDash(2, 3)
             c.rect(left, bottom, right - left, top - bottom)
+            c.restoreState()
+
+        # Header/Footer and page numbers
+        if header_text:
+            c.saveState()
+            c.setFont("Helvetica", header_font_size)
+            c.drawCentredString((left + right) / 2.0, top - 0.15 * inch, header_text)
+            c.restoreState()
+
+        if footer_text:
+            c.saveState()
+            c.setFont("Helvetica", footer_font_size)
+            c.drawCentredString((left + right) / 2.0, bottom + 0.15 * inch, footer_text)
+            c.restoreState()
+
+        if page_numbers:
+            page_num = page_index + 1
+            c.saveState()
+            c.setFont("Helvetica", page_number_font_size)
+            y = bottom + 0.15 * inch
+            if is_odd:
+                # Outer side is right
+                c.drawRightString(right, y, str(page_num))
+            else:
+                # Outer side is left
+                c.drawString(left, y, str(page_num))
             c.restoreState()
 
         c.showPage()
