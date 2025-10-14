@@ -31,6 +31,7 @@ import os
 @click.option("--bleed-pt", "bleed_pt", type=float, default=0.0, show_default=True, help="Bleed amount in points (72pt = 1 inch)")
 @click.option("--validate-path", "validate_path", type=str, default=None, help="If provided, validates the given PDF and exits.")
 @click.option("--validate-trim", "validate_trim", type=str, default=None, help="Trim key to validate against (defaults to --trim if omitted).")
+@click.option("--validate-verbose", "validate_verbose", is_flag=True, default=False, help="Print verbose diagnostics during validation (Do/Form counts, DPI placements)")
 @click.option("--make-cover", "make_cover", is_flag=True, default=False, help="Generate a cover instead of an interior")
 @click.option("--cover-pages", "cover_pages", type=click.IntRange(min=1), default=120, show_default=True, help="Interior page count used to compute spine width")
 @click.option("--cover-paper", "cover_paper", type=click.Choice(["white", "cream", "color"], case_sensitive=False), default="white", show_default=True, help="Paper type for spine width calc")
@@ -39,7 +40,7 @@ import os
 @click.option("--cover-subtitle", "cover_subtitle", type=str, default="", show_default=True, help="Front cover subtitle")
 @click.option("--cover-author", "cover_author", type=str, default="", show_default=True, help="Front cover author")
 @click.option("--validate-cover-path", "validate_cover_path", type=str, default=None, help="If provided, validates the given COVER PDF and exits (requires --trim, --cover-pages, --cover-paper, --cover-bleed-pt)")
-def main(trim: str, pages: int, out_path: str, line_spacing_pt: float, line_weight_pt: float, gutter_pt: float, debug_safe_area: bool, template: str, grid_size_pt: float, dot_step_pt: float, dot_radius_pt: float, habit_rows: int, habit_cols: int, page_numbers: bool, header_text: str, footer_text: str, header_font_size: float, footer_font_size: float, page_number_font_size: float, set_trimbox: bool, set_bleedbox: bool, bleed_pt: float, validate_path: str | None, validate_trim: str | None,
+def main(trim: str, pages: int, out_path: str, line_spacing_pt: float, line_weight_pt: float, gutter_pt: float, debug_safe_area: bool, template: str, grid_size_pt: float, dot_step_pt: float, dot_radius_pt: float, habit_rows: int, habit_cols: int, page_numbers: bool, header_text: str, footer_text: str, header_font_size: float, footer_font_size: float, page_number_font_size: float, set_trimbox: bool, set_bleedbox: bool, bleed_pt: float, validate_path: str | None, validate_trim: str | None, validate_verbose: bool,
          make_cover: bool, cover_pages: int, cover_paper: str, cover_bleed_pt: float, cover_title: str, cover_subtitle: str, cover_author: str, validate_cover_path: str | None):
     # Validation mode
     if validate_cover_path:
@@ -58,7 +59,7 @@ def main(trim: str, pages: int, out_path: str, line_spacing_pt: float, line_weig
 
     if validate_path:
         vt = validate_trim or trim
-        report = validate_pdf(validate_path, vt)
+        report = validate_pdf(validate_path, vt, verbose=validate_verbose)
         click.echo(f"Validation for {validate_path} (trim={report.trim_key})")
         click.echo(f"Pages: {report.page_count}")
         click.echo(f"First page size: {report.page_size_pt[0]:.2f} x {report.page_size_pt[1]:.2f} pt")

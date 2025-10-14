@@ -1,5 +1,12 @@
 from dataclasses import dataclass
 from typing import List, Tuple
+import re
+import math
+from io import BytesIO
+try:
+    from PIL import Image  # type: ignore
+except Exception:  # Pillow not installed; inline image DPI will be skipped
+    Image = None  # type: ignore
 
 from pypdf import PdfReader
 from kdp_builder.config.sizes import SIZES
@@ -36,7 +43,7 @@ def _rect_inside(inner, outer, tol: float = 0.1) -> bool:
         return True
 
 
-def validate_pdf(pdf_path: str, trim_key: str) -> ValidationReport:
+def validate_pdf(pdf_path: str, trim_key: str, verbose: bool = False) -> ValidationReport:
     if trim_key not in SIZES:
         raise ValueError(f"Unknown trim key '{trim_key}'. Available: {list(SIZES.keys())}")
 
@@ -80,6 +87,31 @@ def validate_pdf(pdf_path: str, trim_key: str) -> ValidationReport:
 
     num_pages = len(reader.pages)
 
+    # Bleed auto-detect (common 0.125in = 9pt bleed). For interiors, width adds bleed on outer edge only (once),
+    # height adds bleed on both top and bottom (twice).
+    bleed_pt_detected: float | None = None
+    expected_w = target_w
+    expected_h = target_h
+    if num_pages > 0:
+        try:
+            _w0 = float(reader.pages[0].mediabox.width)
+            _h0 = float(reader.pages[0].mediabox.height)
+            if _almost_equal(_w0, target_w) and _almost_equal(_h0, target_h):
+                bleed_pt_detected = 0.0
+            else:
+                dw = _w0 - target_w
+                dh = _h0 - target_h
+                # Detect ~9pt width and ~18pt height increase (±0.75pt tolerance)
+                if 8.25 <= dw <= 9.75 and 17.25 <= dh <= 18.75:
+                    bleed_pt_detected = round(dh / 2.0, 3)
+                    expected_w = target_w + bleed_pt_detected
+                    expected_h = target_h + 2 * bleed_pt_detected
+                else:
+                    # Keep defaults; pages will be validated individually and flagged if mismatched
+                    pass
+        except Exception:
+            pass
+
     # KDP typical page count constraints for interiors (varies by paper/ink). Use broad safe range.
     if num_pages < 24:
         issues.append(ValidationIssue("error", f"Page count {num_pages} is below KDP minimum (24)."))
@@ -99,19 +131,32 @@ def validate_pdf(pdf_path: str, trim_key: str) -> ValidationReport:
     fonts_subset = set()
     fonts_type3 = set()
 
+    dpi_checks = 0
+    do_ops_total = 0
+    do_ops_images = 0
+    do_ops_forms = 0
+    patterns_found = 0
+    patterns_processed = 0
+    shadings_found = 0
+    shadings_processed = 0
+    groups_found = 0
+    groups_processed = 0
+
     for i, page in enumerate(reader.pages, start=1):
         media_box = page.mediabox
         w = float(media_box.width)
         h = float(media_box.height)
-        # Accept rotation-independent match
-        size_match = (_almost_equal(w, target_w) and _almost_equal(h, target_h)) or (
-            _almost_equal(w, target_h) and _almost_equal(h, target_w)
+        # Accept rotation-independent match, with optional bleed allowance
+        exp_w = expected_w
+        exp_h = expected_h
+        size_match = (_almost_equal(w, exp_w) and _almost_equal(h, exp_h)) or (
+            _almost_equal(w, exp_h) and _almost_equal(h, exp_w)
         )
         if not size_match:
             issues.append(
                 ValidationIssue(
                     "error",
-                    f"Page {i} size {w:.2f}x{h:.2f} pt does not match trim {trim_key} ({target_w:.2f}x{target_h:.2f} pt).",
+                    f"Page {i} size {w:.2f}x{h:.2f} pt does not match expected {'bleed' if (bleed_pt_detected and bleed_pt_detected>0) else 'trim'} size ({exp_w:.2f}x{exp_h:.2f} pt).",
                 )
             )
 
@@ -214,18 +259,228 @@ def validate_pdf(pdf_path: str, trim_key: str) -> ValidationReport:
         except Exception:
             pass
 
-    ok = not any(iss.level == "error" for iss in issues)
-    # Orientation/annotation summary warnings
-    if landscape_pages > 0:
-        issues.append(ValidationIssue("warning", f"{landscape_pages} page(s) are landscape. Interiors are typically portrait."))
-    if pages_with_rotation > 0:
-        issues.append(ValidationIssue("warning", f"{pages_with_rotation} page(s) have a rotation set. Ensure orientation is intended."))
-    if pages_with_annots > 0:
-        issues.append(ValidationIssue("error", f"{pages_with_annots} page(s) contain annotations/form fields. Remove all interactive elements for print."))
+        # Image DPI estimation: handle direct and nested (Form XObject) placements
+        try:
+            def mul(m1, m2):
+                a1, b1, c1, d1, e1, f1 = m1
+                a2, b2, c2, d2, e2, f2 = m2
+                return [
+                    a1 * a2 + b1 * c2,
+                    a1 * b2 + b1 * d2,
+                    c1 * a2 + d1 * c2,
+                    c1 * b2 + d1 * d2,
+                    e1 * a2 + f1 * c2 + e2,
+                    e1 * b2 + f1 * d2 + f2,
+                ]
+
+            # Build string-keyed XObject map for lookup
+            xobject_dict = {}
+            if xobj and hasattr(xobj, "items"):
+                for k, v in xobj.items():
+                    xobject_dict[str(k)] = v
+
+            def process_stream(res, contents, ctm_current):
+                cur_xobj = res.get("/XObject") if hasattr(res, "get") else None
+                img_px = {}
+                if cur_xobj and hasattr(cur_xobj, "items"):
+                    for name, obj in cur_xobj.items():
+                        try:
+                            if str(obj.get("/Subtype")) == "/Image":
+                                img_px[str(name)] = (int(obj.get("/Width")), int(obj.get("/Height")))
+                        except Exception:
+                            continue
+
+                data = b""
+                if contents is not None:
+                    if isinstance(contents, list):
+                        for cs in contents:
+                            try:
+                                data += cs.get_data()
+                            except Exception:
+                                pass
+                    else:
+                        try:
+                            data = contents.get_data()
+                        except Exception:
+                            data = b""
+                if not data:
+                    return
+
+                s = data.decode("latin-1", errors="ignore")
+                tokens = re.findall(r"cm|Do|q|Q|/[^^\s<>\[\]\(\)]+|-?\d*\.??\d+(?:[eE][+-]?\d+)?|BI|ID|EI|scn|SCN|cs|CS", s)
+                ctm_stack = [ctm_current[:]]
+
+                idx = 0
+                while idx < len(tokens):
+                    tkn = tokens[idx]
+                    if tkn == "q":
+                        ctm_stack.append(ctm_stack[-1][:])
+                        idx += 1
+                        continue
+                    if tkn == "Q":
+                        if len(ctm_stack) > 1:
+                            ctm_stack.pop()
+                        idx += 1
+                        continue
+                    if tkn == "cm":
+                        try:
+                            nums = [float(tokens[idx - 6 + k]) for k in range(6)]
+                            ctm_stack[-1] = mul(ctm_stack[-1], [nums[0], nums[1], nums[2], nums[3], nums[4], nums[5]])
+                        except Exception:
+                            pass
+                        idx += 1
+                        continue
+                    if tkn == "Do":
+                        try:
+                            name = tokens[idx - 1]
+                            if not name.startswith("/"):
+                                idx += 1
+                                continue
+                            cur_ctm = ctm_stack[-1]
+                            do_ops_total += 1
+                            if name in img_px:
+                                do_ops_images += 1
+                                a, b, c_, d, e_, f_ = cur_ctm
+                                sx = math.hypot(a, b)
+                                sy = math.hypot(c_, d)
+                                wpx, hpx = img_px[name]
+                                if sx > 0 and sy > 0:
+                                    dpi_x = (wpx * 72.0) / sx
+                                    dpi_y = (hpx * 72.0) / sy
+                                    dpi_min = min(dpi_x, dpi_y)
+                                    issues.append(ValidationIssue("info", f"Page {i}: Image '{name}' estimated DPI {dpi_x:.0f}x{dpi_y:.0f} (min {dpi_min:.0f})."))
+                                    dpi_checks += 1
+                                    if dpi_min < 200:
+                                        issues.append(ValidationIssue("error", f"Page {i}: Image '{name}' estimated DPI {dpi_min:.0f} (<200)."))
+                                    elif dpi_min < 300:
+                                        issues.append(ValidationIssue("warning", f"Page {i}: Image '{name}' estimated DPI {dpi_min:.0f} (<300)."))
+                            else:
+                                # Maybe a Form XObject; resolve and recurse
+                                form_obj = None
+                                if cur_xobj and hasattr(cur_xobj, "get"):
+                                    try:
+                                        form_obj = cur_xobj.get(name)
+                                    except Exception:
+                                        form_obj = None
+                                if form_obj is None:
+                                    form_obj = xobject_dict.get(name)
+                                if form_obj is not None and str(form_obj.get("/Subtype")) == "/Form":
+                                    do_ops_forms += 1
+                                    new_ctm = cur_ctm[:]
+                                    try:
+                                        m_arr = form_obj.get("/Matrix")
+                                        if m_arr and len(m_arr) == 6:
+                                            m = [float(m_arr[0]), float(m_arr[1]), float(m_arr[2]), float(m_arr[3]), float(m_arr[4]), float(m_arr[5])]
+                                            new_ctm = mul(cur_ctm, m)
+                                    except Exception:
+                                        pass
+                                    form_res = form_obj.get("/Resources") or res
+                                    form_contents = form_obj.get_contents()
+                                    process_stream(form_res, form_contents, new_ctm)
+                        except Exception:
+                            pass
+                        idx += 1
+                        continue
+                    # Skip inline image tokens for now
+                    if tkn in ("BI", "ID", "EI"):
+                        idx += 1
+                        continue
+                    idx += 1
+
+            page_res = page.get("/Resources") or {}
+            def process_patterns(res, base_ctm):
+                nonlocal patterns_found, patterns_processed
+                pat = res.get("/Pattern") if hasattr(res, "get") else None
+                if not pat or not hasattr(pat, "items"):
+                    return
+                for _, pobj in pat.items():
+                    try:
+                        patterns_found += 1
+                        contents = pobj.get_contents()
+                        if contents is None:
+                            continue
+                        m = base_ctm[:]
+                        try:
+                            m_arr = pobj.get("/Matrix")
+                            if m_arr and len(m_arr) == 6:
+                                m = mul(base_ctm, [float(m_arr[0]), float(m_arr[1]), float(m_arr[2]), float(m_arr[3]), float(m_arr[4]), float(m_arr[5])])
+                        except Exception:
+                            pass
+                        res2 = pobj.get("/Resources") or res
+                        process_stream(res2, contents, m)
+                        patterns_processed += 1
+                    except Exception:
+                        continue
+
+            # Process shadings in page resources
+            def process_shadings(res, base_ctm):
+                nonlocal shadings_found, shadings_processed
+                shad = res.get("/Shading") if hasattr(res, "get") else None
+                if not shad or not hasattr(shad, "items"):
+                    return
+                for _, sobj in shad.items():
+                    try:
+                        shadings_found += 1
+                        # Shading types 1-3 (function-based) don't have content streams, but others might
+                        if str(sobj.get("/ShadingType")) in ("4", "5", "6", "7"):  # Gouraud, Coons, Tensor, Free-form
+                            contents = sobj.get_contents()
+                            if contents is None:
+                                continue
+                            m = base_ctm[:]
+                            try:
+                                m_arr = sobj.get("/Matrix")
+                                if m_arr and len(m_arr) == 6:
+                                    m = mul(base_ctm, [float(m_arr[0]), float(m_arr[1]), float(m_arr[2]), float(m_arr[3]), float(m_arr[4]), float(m_arr[5])])
+                            except Exception:
+                                pass
+                            res2 = sobj.get("/Resources") or res
+                            process_stream(res2, contents, m)
+                            shadings_processed += 1
+                    except Exception:
+                        continue
+
+            # Process transparency groups if present
+            def process_groups(res, base_ctm):
+                nonlocal groups_found, groups_processed
+                grp = res.get("/Group") if hasattr(res, "get") else None
+                if grp and hasattr(grp, "get"):
+                    try:
+                        groups_found += 1
+                        # Transparency groups can have content streams
+                        contents = grp.get_contents()
+                        if contents is None:
+                            return
+                        m = base_ctm[:]
+                        try:
+                            m_arr = grp.get("/Matrix")
+                            if m_arr and len(m_arr) == 6:
+                                m = mul(base_ctm, [float(m_arr[0]), float(m_arr[1]), float(m_arr[2]), float(m_arr[3]), float(m_arr[4]), float(m_arr[5])])
+                        except Exception:
+                            pass
+                        res2 = grp.get("/Resources") or res
+                        process_stream(res2, contents, m)
+                        groups_processed += 1
+                    except Exception:
+                        pass
+
+            process_patterns(page_res, [1, 0, 0, 1, 0, 0])
+            process_shadings(page_res, [1, 0, 0, 1, 0, 0])
+            process_groups(page_res, [1, 0, 0, 1, 0, 0])
+            process_stream(page_res, page.get_contents(), [1, 0, 0, 1, 0, 0])
+        except Exception:
+            pass
+
     if image_object_count > 0:
         issues.append(ValidationIssue("info", f"Detected {image_object_count} embedded image object(s). Verify print DPI ≥ 300 if images are used."))
     if low_res_image_guess > 0:
         issues.append(ValidationIssue("warning", f"{low_res_image_guess} image(s) have small intrinsic size (<900 px). They may print under 300 DPI if scaled large."))
+    # Bleed detection summary
+    if bleed_pt_detected is None:
+        issues.append(ValidationIssue("info", "Bleed: could not auto-detect (non-standard size)."))
+    elif bleed_pt_detected == 0.0:
+        issues.append(ValidationIssue("info", "Bleed: not detected (trim size)."))
+    else:
+        issues.append(ValidationIssue("info", f"Bleed: detected ~{bleed_pt_detected:.1f} pt (≈ {bleed_pt_detected/72.0:.3f} in)."))
     # Fonts summary
     if fonts_type3:
         issues.append(ValidationIssue("warning", f"Type3 font(s) used: {sorted(fonts_type3)}. Type3 can print poorly; prefer embedded Type1/TrueType/OpenType."))
@@ -233,6 +488,18 @@ def validate_pdf(pdf_path: str, trim_key: str) -> ValidationReport:
         issues.append(ValidationIssue("error", f"Non-embedded font(s) detected: {sorted(fonts_not_embedded)}. All fonts must be embedded for print."))
     if fonts_subset:
         issues.append(ValidationIssue("info", f"Subset embedded font(s): {sorted(fonts_subset)}."))
+
+    ok = not any(iss.level == "error" for iss in issues)
+    # Summaries
+    if dpi_checks == 0 and image_object_count > 0:
+        issues.append(ValidationIssue("info", "Images detected but DPI could not be estimated (images may be drawn via unsupported operators)."))
+    elif dpi_checks == 0 and image_object_count == 0:
+        issues.append(ValidationIssue("info", "No embedded images detected in PDF."))
+    elif dpi_checks > 0:
+        issues.append(ValidationIssue("info", f"Estimated DPI for {dpi_checks} image placement(s)."))
+
+    if verbose:
+        issues.append(ValidationIssue("info", f"Diagnostics: Do={do_ops_total}, images={do_ops_images}, forms={do_ops_forms}, patterns={patterns_processed}/{patterns_found}, shadings={shadings_processed}/{shadings_found}, groups={groups_processed}/{groups_found}, dpi_placements={dpi_checks}"))
 
     # Report uses first page size for summary (fallback if empty doc)
     if num_pages > 0:

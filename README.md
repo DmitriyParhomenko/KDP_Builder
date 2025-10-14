@@ -99,8 +99,7 @@ python main.py --template habit --habit-rows 20 --habit-cols 7 --pages 2 --out o
   - `--cover-title`, `--cover-subtitle`, `--cover-author`
 - `--validate-path` Validate an existing PDF and exit.
 - `--validate-trim` Trim key used for validation (defaults to `--trim`).
- - Cover validation:
-   - `--validate-cover-path` Validate a cover (requires `--trim`, `--cover-pages`, `--cover-paper`, `--cover-bleed-pt`).
+ - `--validate-verbose` Print verbose diagnostics during validation (Do/Form counts, DPI placements).
 
 See help:
 ```bash
@@ -125,6 +124,7 @@ Use `--validate-path` (interior) or `--validate-cover-path` (cover). Current che
 - TrimBox/BleedBox sanity (inside MediaBox; Trim inside Bleed)
 - Embedded images count and small intrinsic size heuristic (<900 px)
 - Fonts: non-embedded (error), Type3 (warning), subset fonts (info)
+- Image DPI estimation: parses content streams for cm/Do, recurses into Forms/Patterns/Shadings/Groups, reports per-placement DPI with thresholds
 
 ## Pagination
 
