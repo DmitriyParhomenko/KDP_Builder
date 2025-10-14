@@ -112,6 +112,20 @@ python main.py --help
 - Layouts are defined procedurally and rendered with ReportLab into vector PDFs compliant with typical KDP trims and margins.
 - The MVP now includes multiple templates (lined, grid, dot grid, habit tracker) with mirrored safe areas and optional gutter.
 
+## Validation
+
+Use `--validate-path` (interior) or `--validate-cover-path` (cover). Current checks include:
+
+- Page count within KDP interior range (24–828)
+- Uniform page size vs `--trim`
+- PDF encryption status
+- PDF header version (warn > 1.7)
+- Rotation/orientation warnings
+- Annotations/form fields not allowed
+- TrimBox/BleedBox sanity (inside MediaBox; Trim inside Bleed)
+- Embedded images count and small intrinsic size heuristic (<900 px)
+- Fonts: non-embedded (error), Type3 (warning), subset fonts (info)
+
 ## Pagination
 
 Add page numbers, header, and footer:
