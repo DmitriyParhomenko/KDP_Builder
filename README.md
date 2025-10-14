@@ -158,7 +158,7 @@ Generate a full-wrap cover (back + spine + front) with a simple placeholder layo
 ```bash
 python main.py --make-cover --trim 6x9 --cover-pages 120 --cover-paper white \
   --cover-bleed-pt 9 --cover-title "My Planner" --cover-subtitle "Undated" \
-  --cover-author "D. Parhomenko" --out outputs/cover.pdf
+  --cover-author "Author Name" --out outputs/cover.pdf
 ```
 
 Validate the cover against expected dimensions for the given trim/pages/paper/bleed:
