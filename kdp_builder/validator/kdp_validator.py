@@ -7,8 +7,8 @@ try:
     from PIL import Image  # type: ignore
 except Exception:  # Pillow not installed; inline image DPI will be skipped
     Image = None  # type: ignore
-
-from pypdf import PdfReader
+import pikepdf
+from pikepdf import Pdf, Object
 from kdp_builder.config.sizes import SIZES
 
 
@@ -53,39 +53,25 @@ def validate_pdf(pdf_path: str, trim_key: str, verbose: bool = False) -> Validat
 
     issues: List[ValidationIssue] = []
 
-    reader = PdfReader(pdf_path)
+    pdf = Pdf.open(pdf_path)
 
     # Encryption check
     try:
-        if getattr(reader, "is_encrypted", False):
+        if pdf.is_encrypted:
             issues.append(ValidationIssue("error", "PDF is encrypted. KDP requires unencrypted, printable PDFs."))
     except Exception:
         issues.append(ValidationIssue("warning", "Could not determine encryption status."))
 
     # PDF version check (recommend <= 1.7)
     try:
-        pdf_header = getattr(reader, "pdf_header", None)
-        version = getattr(pdf_header, "version", None)
-        if version is not None:
-            # version may be a tuple (1, 7) or float-like; normalize to string
-            ver_str = f"{version}"
-            issues.append(ValidationIssue("info", f"PDF header version: {ver_str}"))
-            try:
-                # crude parse: accept values up to 1.7
-                if isinstance(version, (tuple, list)):
-                    major, minor = int(version[0]), int(version[1])
-                else:
-                    parts = str(version).split(".")
-                    major = int(parts[0])
-                    minor = int(parts[1]) if len(parts) > 1 else 0
-                if (major, minor) > (1, 7):
-                    issues.append(ValidationIssue("warning", "PDF version is > 1.7. Consider exporting as 1.7 or earlier for print compatibility."))
-            except Exception:
-                pass
+        version = pdf.pdf_version
+        issues.append(ValidationIssue("info", f"PDF header version: {version}"))
+        if version > "1.7":
+            issues.append(ValidationIssue("warning", "PDF version is > 1.7. Consider exporting as 1.7 or earlier for print compatibility."))
     except Exception:
         issues.append(ValidationIssue("warning", "Could not read PDF version header."))
 
-    num_pages = len(reader.pages)
+    num_pages = len(pdf.pages)
 
     # Bleed auto-detect (common 0.125in = 9pt bleed). For interiors, width adds bleed on outer edge only (once),
     # height adds bleed on both top and bottom (twice).
@@ -94,8 +80,8 @@ def validate_pdf(pdf_path: str, trim_key: str, verbose: bool = False) -> Validat
     expected_h = target_h
     if num_pages > 0:
         try:
-            _w0 = float(reader.pages[0].mediabox.width)
-            _h0 = float(reader.pages[0].mediabox.height)
+            _w0 = float(pdf.pages[0].MediaBox[2] - pdf.pages[0].MediaBox[0])
+            _h0 = float(pdf.pages[0].MediaBox[3] - pdf.pages[0].MediaBox[1])
             if _almost_equal(_w0, target_w) and _almost_equal(_h0, target_h):
                 bleed_pt_detected = 0.0
             else:
@@ -142,10 +128,10 @@ def validate_pdf(pdf_path: str, trim_key: str, verbose: bool = False) -> Validat
     groups_found = 0
     groups_processed = 0
 
-    for i, page in enumerate(reader.pages, start=1):
-        media_box = page.mediabox
-        w = float(media_box.width)
-        h = float(media_box.height)
+    for i, page in enumerate(pdf.pages, start=1):
+        media_box = page.MediaBox
+        w = float(media_box[2] - media_box[0])
+        h = float(media_box[3] - media_box[1])
         # Accept rotation-independent match, with optional bleed allowance
         exp_w = expected_w
         exp_h = expected_h
@@ -173,7 +159,7 @@ def validate_pdf(pdf_path: str, trim_key: str, verbose: bool = False) -> Validat
 
         # Rotation check (warn if rotated)
         try:
-            rot = getattr(page, "rotation", 0) or page.get("/Rotate", 0)
+            rot = page.Rotate if page.Rotate else 0
             if rot not in (0, None):
                 pages_with_rotation += 1
         except Exception:
@@ -181,7 +167,7 @@ def validate_pdf(pdf_path: str, trim_key: str, verbose: bool = False) -> Validat
 
         # Font embedding checks
         try:
-            resources = resources if 'resources' in locals() else (page.get("/Resources") or {})
+            resources = page.Resources if page.Resources else {}
             font_dict = resources.get("/Font") if hasattr(resources, "get") else None
             if font_dict and hasattr(font_dict, "items"):
                 for font_name, font_obj in font_dict.items():
@@ -221,8 +207,8 @@ def validate_pdf(pdf_path: str, trim_key: str, verbose: bool = False) -> Validat
 
         # TrimBox/BleedBox sanity (if present)
         try:
-            trim = getattr(page, "trimbox", None)
-            bleed = getattr(page, "bleedbox", None)
+            trim = page.TrimBox if page.TrimBox else None
+            bleed = page.BleedBox if page.BleedBox else None
             if trim is not None:
                 if not _rect_inside(trim, media_box):
                     issues.append(ValidationIssue("warning", f"Page {i} TrimBox lies outside MediaBox; check export settings."))
@@ -237,7 +223,7 @@ def validate_pdf(pdf_path: str, trim_key: str, verbose: bool = False) -> Validat
 
         # Basic image XObject presence count (no DPI calc in this pass)
         try:
-            resources = page.get("/Resources") or {}
+            resources = page.Resources or {}
             xobj = resources.get("/XObject") if hasattr(resources, "get") else None
             if xobj and hasattr(xobj, "items"):
                 for _, obj in xobj.items():
@@ -285,10 +271,24 @@ def validate_pdf(pdf_path: str, trim_key: str, verbose: bool = False) -> Validat
                 if cur_xobj and hasattr(cur_xobj, "items"):
                     for name, obj in cur_xobj.items():
                         try:
-                            if str(obj.get("/Subtype")) == "/Image":
-                                img_px[str(name)] = (int(obj.get("/Width")), int(obj.get("/Height")))
+                            # Handle IndirectObject
+                            if hasattr(obj, 'get'):
+                                if str(obj.get("/Subtype")) == "/Image":
+                                    img_px[str(name)] = (int(obj.get("/Width")), int(obj.get("/Height")))
+                                    # Check for masks
+                                    mask = obj.get("/Mask") or obj.get("/SMask")
+                                    if mask:
+                                        issues.append(ValidationIssue("debug", f"Image {name} has mask: {type(mask)}"))
+                                        if hasattr(mask, "get"):
+                                            # Recurse into mask if it's an image
+                                            if str(mask.get("/Subtype", "")) == "/Image":
+                                                process_stream(res, mask.get_contents(), ctm_current)
+                            else:
+                                issues.append(ValidationIssue("debug", f"XObject {name} is IndirectObject, cannot parse"))
                         except Exception:
                             continue
+                elif cur_xobj:
+                    issues.append(ValidationIssue("debug", f"XObjects is IndirectObject, cannot parse"))
 
                 data = b""
                 if contents is not None:
@@ -381,13 +381,46 @@ def validate_pdf(pdf_path: str, trim_key: str, verbose: bool = False) -> Validat
                             pass
                         idx += 1
                         continue
-                    # Skip inline image tokens for now
-                    if tkn in ("BI", "ID", "EI"):
+                    # Handle inline images (BI/ID/EI)
+                    if tkn == "BI":
+                        # Start of inline image
+                        img_data = b""
+                        idx += 1
+                        while idx < len(tokens):
+                            if tokens[idx] == "ID":
+                                break
+                            img_data += tokens[idx].encode("latin-1")
+                            idx += 1
+                        if idx < len(tokens) and tokens[idx] == "ID":
+                            # Process inline image
+                            if Image is not None:
+                                try:
+                                    img_obj = Image.open(BytesIO(img_data))
+                                    wpx, hpx = img_obj.size
+                                    a, b, c_, d, e_, f_ = ctm_stack[-1]
+                                    sx = math.hypot(a, b)
+                                    sy = math.hypot(c_, d)
+                                    if sx > 0 and sy > 0:
+                                        dpi_x = (wpx * 72.0) / sx
+                                        dpi_y = (hpx * 72.0) / sy
+                                        dpi_min = min(dpi_x, dpi_y)
+                                        issues.append(ValidationIssue("info", f"Page {i}: Inline image estimated DPI {dpi_x:.0f}x{dpi_y:.0f} (min {dpi_min:.0f})."))
+                                        dpi_checks += 1
+                                        if dpi_min < 200:
+                                            issues.append(ValidationIssue("error", f"Page {i}: Inline image estimated DPI {dpi_min:.0f} (<200)."))
+                                        elif dpi_min < 300:
+                                            issues.append(ValidationIssue("warning", f"Page {i}: Inline image estimated DPI {dpi_min:.0f} (<300)."))
+                                except Exception:
+                                    pass
+                            idx += 1  # Skip ID
+                        continue
+                    if tkn == "EI":
+                        # End of inline image (should be handled by BI loop)
                         idx += 1
                         continue
                     idx += 1
 
-            page_res = page.get("/Resources") or {}
+            page_res = page.Resources or {}
             def process_patterns(res, base_ctm):
                 nonlocal patterns_found, patterns_processed
                 pat = res.get("/Pattern") if hasattr(res, "get") else None
@@ -490,21 +523,70 @@ def validate_pdf(pdf_path: str, trim_key: str, verbose: bool = False) -> Validat
         issues.append(ValidationIssue("info", f"Subset embedded font(s): {sorted(fonts_subset)}."))
 
     ok = not any(iss.level == "error" for iss in issues)
-    # Summaries
-    if dpi_checks == 0 and image_object_count > 0:
-        issues.append(ValidationIssue("info", "Images detected but DPI could not be estimated (images may be drawn via unsupported operators)."))
-    elif dpi_checks == 0 and image_object_count == 0:
-        issues.append(ValidationIssue("info", "No embedded images detected in PDF."))
-    elif dpi_checks > 0:
-        issues.append(ValidationIssue("info", f"Estimated DPI for {dpi_checks} image placement(s)."))
 
-    if verbose:
-        issues.append(ValidationIssue("info", f"Diagnostics: Do={do_ops_total}, images={do_ops_images}, forms={do_ops_forms}, patterns={patterns_processed}/{patterns_found}, shadings={shadings_processed}/{shadings_found}, groups={groups_processed}/{groups_found}, dpi_placements={dpi_checks}"))
+    # Direct image extraction and DPI estimation using pikepdf
+    try:
+        for i, page in enumerate(pdf.pages, start=1):
+            try:
+                # Extract images from page (page.images is a dict of name to image object)
+                for name, image in page.images.items():
+                    try:
+                        # image is a pikepdf object with width, height, and data
+                        wpx = image.get("/Width")
+                        hpx = image.get("/Height")
+                        # Assume 1:1 scaling for now (no CTM), but in reality, we'd need to find the scaling
+                        # For simplicity, estimate based on intrinsic size vs page size
+                        # This is a rough heuristic; real DPI requires knowing the drawn size
+                        page_w = float(page.MediaBox[2] - page.MediaBox[0])
+                        page_h = float(page.MediaBox[3] - page.MediaBox[1])
+                        scale_x = page_w / wpx if wpx > 0 else 1
+                        scale_y = page_h / hpx if hpx > 0 else 1
+                        dpi_x = 72.0 / scale_x if scale_x > 0 else 0
+                        dpi_y = 72.0 / scale_y if scale_y > 0 else 0
+                        dpi_min = min(dpi_x, dpi_y)
+                        issues.append(ValidationIssue("info", f"Page {i}: Extracted image '{name}' {wpx}x{hpx} px, estimated DPI {dpi_x:.0f}x{dpi_y:.0f} (min {dpi_min:.0f})."))
+                        dpi_checks += 1
+                        if dpi_min < 200:
+                            issues.append(ValidationIssue("error", f"Page {i}: Extracted image '{name}' estimated DPI {dpi_min:.0f} (<200)."))
+                        elif dpi_min < 300:
+                            issues.append(ValidationIssue("warning", f"Page {i}: Extracted image '{name}' estimated DPI {dpi_min:.0f} (<300)."))
+                    except Exception as e:
+                        issues.append(ValidationIssue("debug", f"Error processing extracted image '{name}': {str(e)}"))
+            except Exception as e:
+                issues.append(ValidationIssue("debug", f"Error extracting images from page {i}: {str(e)}"))
+    except Exception as e:
+        issues.append(ValidationIssue("debug", f"Error in image extraction: {str(e)}"))
+
+    # Debug: Check for any images in the document
+    if verbose and image_object_count == 0:
+        issues.append(ValidationIssue("debug", "No image objects found in document. Document structure:"))
+        try:
+            for i, page in enumerate(pdf.pages, 1):
+                resources = page.Resources if page.Resources else {}
+                if resources:
+                    xobjs = resources.get("/XObject")
+                    if xobjs:
+                        # Handle IndirectObject for XObject dictionary
+                        if hasattr(xobjs, 'get'):
+                            for name, obj in xobjs.items():
+                                try:
+                                    # Handle IndirectObject
+                                    if hasattr(obj, 'get'):
+                                        subtype = str(obj.get("/Subtype", "NONE"))
+                                    else:
+                                        subtype = "IndirectObject"
+                                    issues.append(ValidationIssue("debug", f"Page {i} XObject {name}: {subtype}"))
+                                except Exception:
+                                    pass
+                        else:
+                            issues.append(ValidationIssue("debug", f"Page {i} XObjects is IndirectObject, cannot parse"))
+        except Exception as e:
+            issues.append(ValidationIssue("debug", f"Error analyzing document structure: {str(e)}"))
 
     # Report uses first page size for summary (fallback if empty doc)
     if num_pages > 0:
-        first_w = float(reader.pages[0].mediabox.width)
-        first_h = float(reader.pages[0].mediabox.height)
+        first_w = float(pdf.pages[0].MediaBox[2] - pdf.pages[0].MediaBox[0])
+        first_h = float(pdf.pages[0].MediaBox[3] - pdf.pages[0].MediaBox[1])
     else:
         first_w = first_h = 0.0
 

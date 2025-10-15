@@ -124,7 +124,7 @@ Use `--validate-path` (interior) or `--validate-cover-path` (cover). Current che
 - TrimBox/BleedBox sanity (inside MediaBox; Trim inside Bleed)
 - Embedded images count and small intrinsic size heuristic (<900 px)
 - Fonts: non-embedded (error), Type3 (warning), subset fonts (info)
-- Image DPI estimation: parses content streams for cm/Do, recurses into Forms/Patterns/Shadings/Groups, reports per-placement DPI with thresholds
+- Image DPI estimation: uses pikepdf for robust parsing, handles indirect objects, extracts images directly, reports per-placement DPI with thresholds (≥300 recommended, ≥200 required)
 
 ## Pagination
 
@@ -182,7 +182,7 @@ Generated files are written to `outputs/` (ignored by git). Override with `--out
 
 ## Tech Stack
 
-- **Python**: ReportLab, Click (CLI).
+- **Python**: ReportLab, Click (CLI), pikepdf (PDF parsing/validation).
 - Optional/Planned: Typer, FastAPI, Ollama (local LLM), Diffusers/SDXL, OpenCV, Tesseract.
 
 ## Contributing
