@@ -2,6 +2,7 @@ import json
 import re
 import requests
 from typing import Dict, List, Any
+import click
 
 class AILayoutGenerator:
     def __init__(self, model: str = "llama3.2", base_url: str = "http://localhost:11434"):
@@ -38,13 +39,29 @@ Output only valid JSON matching the schema. Ensure elements respect even/odd pag
                 json={
                     "model": self.model,
                     "prompt": full_prompt,
-                    "stream": False
+                    "stream": True  # Enable streaming for progress
                 },
-                timeout=120  # Wait up to 120 seconds for Ollama
+                timeout=120
             )
             response.raise_for_status()
-            result = response.json()
-            layout_str = result.get("response", "")
+            
+            layout_str = ""
+            click.echo("🤖 Ollama is thinking...", err=True)
+            for line in response.iter_lines():
+                if line:
+                    try:
+                        data = json.loads(line.decode('utf-8'))
+                        if 'response' in data:
+                            chunk = data['response']
+                            layout_str += chunk
+                            click.echo(chunk, nl=False, err=True)  # Print chunks as they arrive
+                        if data.get('done', False):
+                            break
+                    except json.JSONDecodeError:
+                        continue
+            
+            click.echo("\n✅ Layout generated!", err=True)  # New line after response
+            
             # Clean the response (remove any non-JSON text)
             layout_str = layout_str.strip()
             if layout_str.startswith("```json"):
@@ -54,7 +71,22 @@ Output only valid JSON matching the schema. Ensure elements respect even/odd pag
             # Remove any leading/trailing non-JSON text
             layout_str = re.sub(r'^[^{]*', '', layout_str)  # Remove anything before {
             layout_str = re.sub(r'}[^}]*$', '}', layout_str)  # Remove anything after }
-            layout = json.loads(layout_str)
+            # Fix common issues: remove extra keys like 'type' and 'required' if present
+            try:
+                parsed = json.loads(layout_str)
+                if 'type' in parsed:
+                    del parsed['type']
+                if 'required' in parsed:
+                    del parsed['required']
+                layout = parsed
+            except json.JSONDecodeError:
+                # If still fails, try to extract just the pages array
+                pages_match = re.search(r'("pages":\s*\[.*\])', layout_str, re.DOTALL)
+                if pages_match:
+                    layout_str = '{' + pages_match.group(1) + '}'
+                    layout = json.loads(layout_str)
+                else:
+                    raise
             # Post-process to adjust positions for gutters (if not handled by AI)
             layout = self._apply_gutters(layout, gutter_pt)
             return layout
