@@ -1,4 +1,5 @@
 import json
+import re
 import requests
 from typing import Dict, List, Any
 
@@ -43,11 +44,15 @@ Output only valid JSON matching the schema. Ensure elements respect even/odd pag
             response.raise_for_status()
             result = response.json()
             layout_str = result.get("response", "")
+            # Clean the response (remove any non-JSON text)
             layout_str = layout_str.strip()
             if layout_str.startswith("```json"):
                 layout_str = layout_str[7:]
             if layout_str.endswith("```"):
                 layout_str = layout_str[:-3]
+            # Remove any leading/trailing non-JSON text
+            layout_str = re.sub(r'^[^{]*', '', layout_str)  # Remove anything before {
+            layout_str = re.sub(r'}[^}]*$', '}', layout_str)  # Remove anything after }
             layout = json.loads(layout_str)
             # Post-process to adjust positions for gutters (if not handled by AI)
             layout = self._apply_gutters(layout, gutter_pt)
