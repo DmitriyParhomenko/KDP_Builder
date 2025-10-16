@@ -39,7 +39,8 @@ Output only valid JSON matching the schema. Ensure elements respect even/odd pag
                     "model": self.model,
                     "prompt": full_prompt,
                     "stream": False
-                }
+                },
+                timeout=120  # Wait up to 120 seconds for Ollama
             )
             response.raise_for_status()
             result = response.json()
@@ -57,6 +58,8 @@ Output only valid JSON matching the schema. Ensure elements respect even/odd pag
             # Post-process to adjust positions for gutters (if not handled by AI)
             layout = self._apply_gutters(layout, gutter_pt)
             return layout
+        except requests.exceptions.Timeout:
+            raise RuntimeError("Ollama took too long to respond (timeout after 120s). Try a simpler prompt or check Ollama status.")
         except Exception as e:
             raise RuntimeError(f"Error generating layout with Ollama: {str(e)}")
 

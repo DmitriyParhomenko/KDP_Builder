@@ -99,6 +99,7 @@ def main(trim: str, pages: int, out_path: str, line_spacing_pt: float, line_weig
     if ai_prompt:
         # AI layout generation mode
         try:
+            click.echo("🤖 Generating AI layout with Ollama... (this may take up to 2 minutes)")
             generator = AILayoutGenerator()
             layout = generator.generate_layout(ai_prompt, LAYOUT_SCHEMA, gutter_pt=gutter_pt)
             click.echo(f"✅ Generated AI layout for prompt: '{ai_prompt}'")
