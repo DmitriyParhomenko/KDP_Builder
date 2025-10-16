@@ -79,14 +79,16 @@ Output only valid JSON matching the schema. Ensure elements respect even/odd pag
                 if 'required' in parsed:
                     del parsed['required']
                 layout = parsed
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
                 # If still fails, try to extract just the pages array
                 pages_match = re.search(r'("pages":\s*\[.*\])', layout_str, re.DOTALL)
                 if pages_match:
                     layout_str = '{' + pages_match.group(1) + '}'
                     layout = json.loads(layout_str)
                 else:
-                    raise
+                    # Last resort: try to fix common issues like trailing commas
+                    layout_str = re.sub(r',(\s*[}\]])', r'\1', layout_str)
+                    layout = json.loads(layout_str)
             # Post-process to adjust positions for gutters (if not handled by AI)
             layout = self._apply_gutters(layout, gutter_pt)
             return layout
