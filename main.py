@@ -100,7 +100,7 @@ def main(trim: str, pages: int, out_path: str, line_spacing_pt: float, line_weig
         # AI layout generation mode
         try:
             generator = AILayoutGenerator()
-            layout = generator.generate_layout(ai_prompt, LAYOUT_SCHEMA)
+            layout = generator.generate_layout(ai_prompt, LAYOUT_SCHEMA, gutter_pt=gutter_pt)
             click.echo(f"✅ Generated AI layout for prompt: '{ai_prompt}'")
             click.echo(f"Layout pages: {len(layout.get('pages', []))}")
             # For now, use the existing renderer with default settings

@@ -7,27 +7,28 @@ class AILayoutGenerator:
         self.model = model
         self.base_url = base_url
 
-    def generate_layout(self, prompt: str, schema: Dict[str, Any]) -> Dict[str, Any]:
+    def generate_layout(self, prompt: str, schema: Dict[str, Any], gutter_pt: float = 0.0) -> Dict[str, Any]:
         """
-        Generate a layout JSON based on the prompt and schema using Ollama.
+        Generate a layout JSON based on the prompt, schema, and gutter settings.
 
         Args:
-            prompt: User prompt describing the layout (e.g., "Create a habit tracker with 30 days").
+            prompt: User prompt describing the layout.
             schema: JSON schema for the layout structure.
+            gutter_pt: Gutter in points for binding side (left for odd, right for even).
 
         Returns:
             Generated layout as a dictionary.
         """
-        # Craft the full prompt for Ollama
-        schema_str = json.dumps(schema, indent=2)
+        # Incorporate gutter into the prompt for better AI understanding
+        gutter_prompt = f"Include a {gutter_pt}pt gutter on the binding side (left for odd pages, right for even pages)."
         full_prompt = f"""
 You are an expert layout designer for KDP book interiors. Generate a JSON layout based on the following prompt and schema.
 
-Prompt: {prompt}
+Prompt: {prompt} {gutter_prompt}
 
-Schema: {schema_str}
+Schema: {json.dumps(schema, indent=2)}
 
-Output only valid JSON matching the schema. No explanations or extra text.
+Output only valid JSON matching the schema. Ensure elements respect even/odd page gutters for binding.
 """
 
         try:
@@ -42,16 +43,35 @@ Output only valid JSON matching the schema. No explanations or extra text.
             response.raise_for_status()
             result = response.json()
             layout_str = result.get("response", "")
-            # Clean the response (remove any non-JSON text)
             layout_str = layout_str.strip()
             if layout_str.startswith("```json"):
                 layout_str = layout_str[7:]
             if layout_str.endswith("```"):
                 layout_str = layout_str[:-3]
             layout = json.loads(layout_str)
+            # Post-process to adjust positions for gutters (if not handled by AI)
+            layout = self._apply_gutters(layout, gutter_pt)
             return layout
         except Exception as e:
             raise RuntimeError(f"Error generating layout with Ollama: {str(e)}")
+
+    def _apply_gutters(self, layout: Dict[str, Any], gutter_pt: float) -> Dict[str, Any]:
+        """
+        Adjust element positions for even/odd page gutters.
+        """
+        pages = layout.get("pages", [])
+        for page in pages:
+            page_num = page.get("page_number", 1)
+            is_odd = page_num % 2 == 1
+            for element in page.get("elements", []):
+                x = element.get("x", 0)
+                if is_odd:
+                    # Odd page: shift elements right by gutter
+                    element["x"] = x + gutter_pt
+                else:
+                    # Even page: shift elements left by gutter (but ensure no negative)
+                    element["x"] = max(0, x - gutter_pt)
+        return layout
 
 # Example schema for internal page layouts
 LAYOUT_SCHEMA = {
