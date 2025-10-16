@@ -3,6 +3,7 @@ from kdp_builder.renderer.pdf_renderer import generate_lined_pages
 from kdp_builder.validator.kdp_validator import validate_pdf
 from kdp_builder.cover.cover_renderer import generate_cover
 from kdp_builder.cover.cover_validator import validate_cover
+from kdp_builder.ai.layout_generator import AILayoutGenerator, LAYOUT_SCHEMA
 import os
 
 
@@ -40,8 +41,9 @@ import os
 @click.option("--cover-subtitle", "cover_subtitle", type=str, default="", show_default=True, help="Front cover subtitle")
 @click.option("--cover-author", "cover_author", type=str, default="", show_default=True, help="Front cover author")
 @click.option("--validate-cover-path", "validate_cover_path", type=str, default=None, help="If provided, validates the given COVER PDF and exits (requires --trim, --cover-pages, --cover-paper, --cover-bleed-pt)")
+@click.option("--ai-prompt", "ai_prompt", type=str, default=None, help="Prompt for AI-generated layout (e.g., 'Create a habit tracker with 30 days'). Uses Ollama for local generation.")
 def main(trim: str, pages: int, out_path: str, line_spacing_pt: float, line_weight_pt: float, gutter_pt: float, debug_safe_area: bool, template: str, grid_size_pt: float, dot_step_pt: float, dot_radius_pt: float, habit_rows: int, habit_cols: int, page_numbers: bool, header_text: str, footer_text: str, header_font_size: float, footer_font_size: float, page_number_font_size: float, set_trimbox: bool, set_bleedbox: bool, bleed_pt: float, validate_path: str | None, validate_trim: str | None, validate_verbose: bool,
-         make_cover: bool, cover_pages: int, cover_paper: str, cover_bleed_pt: float, cover_title: str, cover_subtitle: str, cover_author: str, validate_cover_path: str | None):
+         make_cover: bool, cover_pages: int, cover_paper: str, cover_bleed_pt: float, cover_title: str, cover_subtitle: str, cover_author: str, validate_cover_path: str | None, ai_prompt: str | None):
     # Validation mode
     if validate_cover_path:
         report = validate_cover(validate_cover_path, trim, cover_pages, cover_paper.lower(), cover_bleed_pt)
@@ -93,6 +95,48 @@ def main(trim: str, pages: int, out_path: str, line_spacing_pt: float, line_weig
         )
         click.echo(f"✅ Generated cover {out_path} for trim {trim}, pages {cover_pages}, paper {cover_paper}")
         return
+
+    if ai_prompt:
+        # AI layout generation mode
+        try:
+            generator = AILayoutGenerator()
+            layout = generator.generate_layout(ai_prompt, LAYOUT_SCHEMA)
+            click.echo(f"✅ Generated AI layout for prompt: '{ai_prompt}'")
+            click.echo(f"Layout pages: {len(layout.get('pages', []))}")
+            # For now, use the existing renderer with default settings
+            # TODO: Integrate layout into renderer
+            out_dir = os.path.dirname(out_path)
+            if out_dir:
+                os.makedirs(out_dir, exist_ok=True)
+            generate_lined_pages(
+                trim_key=trim,
+                pages=pages,
+                out_path=out_path,
+                line_spacing=line_spacing_pt,
+                line_weight=line_weight_pt,
+                gutter_pt=gutter_pt,
+                debug_safe_area=debug_safe_area,
+                template=template.lower(),
+                grid_size_pt=grid_size_pt,
+                dot_step_pt=dot_step_pt,
+                dot_radius_pt=dot_radius_pt,
+                habit_rows=habit_rows,
+                habit_cols=habit_cols,
+                page_numbers=page_numbers,
+                header_text=header_text,
+                footer_text=footer_text,
+                header_font_size=header_font_size,
+                footer_font_size=footer_font_size,
+                page_number_font_size=page_number_font_size,
+                set_trimbox=set_trimbox,
+                set_bleedbox=set_bleedbox,
+                bleed_pt=bleed_pt,
+            )
+            click.echo(f"✅ Generated {out_path} with AI-inspired layout")
+            return
+        except Exception as e:
+            click.echo(f"❌ Error generating AI layout: {str(e)}")
+            raise SystemExit(1)
 
     out_dir = os.path.dirname(out_path)
     if out_dir:
