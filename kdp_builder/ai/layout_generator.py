@@ -190,6 +190,7 @@ Generate the layout JSON now - ONLY the JSON object, nothing else:
             if not layout.get("pages"):
                 click.echo("🤖 AI failed, using fallback layout generator...", err=True)
                 layout = self._generate_fallback_layout(prompt, gutter_pt)
+                click.echo(f"🤖 Fallback generated layout with {len(layout.get('pages', []))} pages", err=True)
 
             # Ensure we always return a valid layout
             if not layout or "pages" not in layout:
@@ -198,6 +199,7 @@ Generate the layout JSON now - ONLY the JSON object, nothing else:
 
             # Post-process to adjust positions for gutters (if not handled by AI)
             layout = self._apply_gutters(layout, gutter_pt)
+            click.echo(f"🤖 Final layout has {len(layout.get('pages', []))} pages before return", err=True)
             return layout
         except requests.exceptions.Timeout:
             raise RuntimeError("Ollama took too long to respond (timeout after 120s). Try a simpler prompt or check Ollama status.")
@@ -220,21 +222,31 @@ Generate the layout JSON now - ONLY the JSON object, nothing else:
                 else:
                     # Even page: shift elements left by gutter (but ensure no negative)
                     element["x"] = max(0, x - gutter_pt)
+        return layout
     def _generate_fallback_layout(self, prompt: str, gutter_pt: float) -> Dict[str, Any]:
         """
         Generate a basic layout when AI fails completely.
         """
         # Parse the prompt to determine layout type
         prompt_lower = prompt.lower()
+        result_layout = None
+
         if "habit tracker" in prompt_lower:
-            return self._generate_basic_habit_tracker(gutter_pt)
+            result_layout = self._generate_basic_habit_tracker(gutter_pt)
+            click.echo(f"🤖 Generated habit tracker layout with {len(result_layout.get('pages', []))} pages", err=True)
         elif "weekly" in prompt_lower or "planner" in prompt_lower:
-            return self._generate_basic_weekly_planner(gutter_pt)
+            result_layout = self._generate_basic_weekly_planner(gutter_pt)
+            click.echo(f"🤖 Generated weekly planner layout with {len(result_layout.get('pages', []))} pages", err=True)
         else:
-            return self._generate_basic_lined_layout(gutter_pt)
+            result_layout = self._generate_basic_lined_layout(gutter_pt)
+            click.echo(f"🤖 Generated lined layout with {len(result_layout.get('pages', []))} pages", err=True)
 
         # This should never be reached, but just in case
-        return {"pages": []}
+        if result_layout is None:
+            click.echo("⚠️ Fallback layout generation returned None, using empty layout", err=True)
+            return {"pages": []}
+
+        return result_layout
 
     def _generate_basic_habit_tracker(self, gutter_pt: float) -> Dict[str, Any]:
         """Generate a simple habit tracker layout."""
