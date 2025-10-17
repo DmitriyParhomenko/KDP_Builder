@@ -185,6 +185,12 @@ Generate the layout JSON now - ONLY the JSON object, nothing else:
                         # Ultimate fallback: create empty layout
                         layout = {"pages": []}
                         click.echo("⚠️ Warning: Could not parse AI response, using empty layout", err=True)
+
+            # If AI generated empty layout, use fallback generator
+            if not layout.get("pages"):
+                click.echo("🤖 AI failed, using fallback layout generator...", err=True)
+                layout = self._generate_fallback_layout(prompt, gutter_pt)
+
             # Post-process to adjust positions for gutters (if not handled by AI)
             layout = self._apply_gutters(layout, gutter_pt)
             return layout
@@ -209,9 +215,119 @@ Generate the layout JSON now - ONLY the JSON object, nothing else:
                 else:
                     # Even page: shift elements left by gutter (but ensure no negative)
                     element["x"] = max(0, x - gutter_pt)
-        return layout
+    def _generate_fallback_layout(self, prompt: str, gutter_pt: float) -> Dict[str, Any]:
+        """
+        Generate a basic layout when AI fails completely.
+        """
+        # Parse the prompt to determine layout type
+        prompt_lower = prompt.lower()
+        if "habit tracker" in prompt_lower:
+            return self._generate_basic_habit_tracker(gutter_pt)
+        elif "weekly" in prompt_lower or "planner" in prompt_lower:
+            return self._generate_basic_weekly_planner(gutter_pt)
+        else:
+            return self._generate_basic_lined_layout(gutter_pt)
 
-# Example schema for internal page layouts
+    def _generate_basic_habit_tracker(self, gutter_pt: float) -> Dict[str, Any]:
+        """Generate a simple habit tracker layout."""
+        pages = []
+        for page_num in range(1, 5):  # 4 pages
+            elements = []
+            # Add title
+            elements.append({
+                "type": "text",
+                "x": gutter_pt + 20 if page_num % 2 == 1 else 20,  # Apply gutter
+                "y": 50,
+                "width": 200,
+                "height": 20,
+                "content": f"Habit Tracker - Page {page_num}",
+                "style": {"fontFamily": "Arial", "fontSize": 14}
+            })
+
+            # Add some basic checkboxes (5 habits, 7 days)
+            for habit in range(5):
+                for day in range(7):
+                    elements.append({
+                        "type": "checkbox",
+                        "x": gutter_pt + 30 + (day * 25) if page_num % 2 == 1 else 30 + (day * 25),
+                        "y": 80 + (habit * 25),
+                        "width": 15,
+                        "height": 15,
+                        "content": ""
+                    })
+
+            pages.append({
+                "page_number": page_num,
+                "elements": elements
+            })
+
+        return {"pages": pages}
+
+    def _generate_basic_weekly_planner(self, gutter_pt: float) -> Dict[str, Any]:
+        """Generate a simple weekly planner layout."""
+        pages = []
+        for page_num in range(1, 5):
+            elements = []
+            # Add title
+            elements.append({
+                "type": "text",
+                "x": gutter_pt + 20 if page_num % 2 == 1 else 20,
+                "y": 50,
+                "width": 200,
+                "height": 20,
+                "content": f"Weekly Planner - Page {page_num}",
+                "style": {"fontFamily": "Arial", "fontSize": 14}
+            })
+
+            # Add hourly slots
+            for hour in range(8, 20):  # 8 AM to 8 PM
+                elements.append({
+                    "type": "text",
+                    "x": gutter_pt + 20 if page_num % 2 == 1 else 20,
+                    "y": 80 + ((hour - 8) * 20),
+                    "width": 30,
+                    "height": 15,
+                    "content": f"{hour}:00",
+                    "style": {"fontFamily": "Arial", "fontSize": 10}
+                })
+                elements.append({
+                    "type": "line",
+                    "x": gutter_pt + 55 if page_num % 2 == 1 else 55,
+                    "y": 80 + ((hour - 8) * 20) + 10,
+                    "width": 300,
+                    "height": 1,
+                    "content": ""
+                })
+
+            pages.append({
+                "page_number": page_num,
+                "elements": elements
+            })
+
+        return {"pages": pages}
+
+    def _generate_basic_lined_layout(self, gutter_pt: float) -> Dict[str, Any]:
+        """Generate a basic lined page layout."""
+        pages = []
+        for page_num in range(1, 5):
+            elements = []
+            # Add horizontal lines
+            for line in range(20):
+                elements.append({
+                    "type": "line",
+                    "x": gutter_pt + 20 if page_num % 2 == 1 else 20,
+                    "y": 60 + (line * 18),
+                    "width": 400,
+                    "height": 0.5,
+                    "content": ""
+                })
+
+            pages.append({
+                "page_number": page_num,
+                "elements": elements
+            })
+
+        return {"pages": pages}
 LAYOUT_SCHEMA = {
     "type": "object",
     "properties": {
