@@ -100,11 +100,12 @@ def main(trim: str, pages: int, out_path: str, line_spacing_pt: float, line_weig
         # AI layout generation mode
         try:
             click.echo("🤖 Generating AI layout with Ollama... (showing response below)")
-            # Set defaults for AI mode: 4 pages, enable bleed
+            # Set defaults for AI mode: 4 pages, enable bleed, and proper gutter for KDP
             ai_pages = 4
             ai_bleed = 9.0  # Standard bleed for KDP
+            ai_gutter = 36.0  # 36pt gutter for proper KDP binding spacing
             generator = AILayoutGenerator()
-            layout = generator.generate_layout(ai_prompt, LAYOUT_SCHEMA, gutter_pt=gutter_pt)
+            layout = generator.generate_layout(ai_prompt, LAYOUT_SCHEMA, gutter_pt=ai_gutter)
             click.echo(f"✅ Generated AI layout for prompt: '{ai_prompt}'")
             click.echo(f"Layout pages: {len(layout.get('pages', []))}")
             # For now, use the existing renderer with default settings
@@ -118,7 +119,7 @@ def main(trim: str, pages: int, out_path: str, line_spacing_pt: float, line_weig
                 out_path=out_path,
                 line_spacing=line_spacing_pt,
                 line_weight=line_weight_pt,
-                gutter_pt=gutter_pt,
+                gutter_pt=ai_gutter,  # Use 36pt gutter for KDP
                 debug_safe_area=debug_safe_area,
                 template=template.lower(),
                 grid_size_pt=grid_size_pt,
@@ -136,7 +137,7 @@ def main(trim: str, pages: int, out_path: str, line_spacing_pt: float, line_weig
                 set_bleedbox=True,  # Enable bleed for AI mode
                 bleed_pt=ai_bleed,  # Use standard bleed
             )
-            click.echo(f"✅ Generated {out_path} with AI-inspired layout (4 pages, bleed enabled)")
+            click.echo(f"✅ Generated {out_path} with AI-inspired layout (4 pages, 36pt gutter, bleed enabled)")
             return
         except Exception as e:
             click.echo(f"❌ Error generating AI layout: {str(e)}")
