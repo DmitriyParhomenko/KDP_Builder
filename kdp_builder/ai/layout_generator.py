@@ -25,17 +25,21 @@ class AILayoutGenerator:
         # Incorporate gutter into the prompt for better AI understanding
         gutter_prompt = f"Include a {gutter_pt}pt gutter on the binding side (left for odd pages, right for even pages)."
         full_prompt = f"""
-You are an expert layout designer for KDP book interiors. Generate a JSON layout based on the following prompt and schema.
+You are an expert layout designer for KDP book interiors. I need you to generate a JSON layout for a habit tracker.
 
-IMPORTANT: You must output ONLY valid JSON that matches the schema exactly. Do NOT include explanations, examples, or any text outside the JSON.
+IMPORTANT INSTRUCTIONS:
+- Output ONLY valid JSON - no explanations, no markdown, no extra text
+- Generate EXACTLY 4 pages
+- Each page must have a "page_number" and "elements" array
+- Elements must have "type", "x", "y", "width", "height" (required)
+- For habit tracker: use "checkbox" elements for habits, "text" for labels
+- Apply gutters correctly: odd pages have left gutter, even pages have right gutter
 
-Prompt: {prompt} {gutter_prompt}
+PROMPT: {prompt} {gutter_prompt}
 
-Schema: {json.dumps(schema, indent=2)}
+SCHEMA: {json.dumps(schema, indent=2)}
 
-Output ONLY the JSON object with "pages" array containing page objects with "page_number" and "elements" array. Each element must have "type", "x", "y", "width", "height" and optionally "content" and "style".
-
-Example format:
+OUTPUT FORMAT (copy this structure exactly):
 {{
   "pages": [
     {{
@@ -43,18 +47,49 @@ Example format:
       "elements": [
         {{
           "type": "text",
-          "x": 0,
-          "y": 0,
+          "x": 18,
+          "y": 50,
           "width": 100,
           "height": 20,
-          "content": "Sample text"
+          "content": "Habit 1",
+          "style": {{"fontFamily": "Arial", "fontSize": 12}}
+        }},
+        {{
+          "type": "checkbox",
+          "x": 18,
+          "y": 75,
+          "width": 15,
+          "height": 15,
+          "content": ""
         }}
       ]
+    }},
+    {{
+      "page_number": 2,
+      "elements": [
+        {{
+          "type": "text",
+          "x": 18,
+          "y": 50,
+          "width": 100,
+          "height": 20,
+          "content": "Habit 2",
+          "style": {{"fontFamily": "Arial", "fontSize": 12}}
+        }}
+      ]
+    }},
+    {{
+      "page_number": 3,
+      "elements": []
+    }},
+    {{
+      "page_number": 4,
+      "elements": []
     }}
   ]
 }}
 
-Generate the layout JSON now:
+Generate the layout JSON now - ONLY the JSON object, nothing else:
 """
 
         try:

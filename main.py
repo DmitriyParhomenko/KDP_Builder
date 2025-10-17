@@ -99,7 +99,10 @@ def main(trim: str, pages: int, out_path: str, line_spacing_pt: float, line_weig
     if ai_prompt:
         # AI layout generation mode
         try:
-            click.echo("🤖 Generating AI layout with Ollama... (this may take up to 2 minutes)")
+            click.echo("🤖 Generating AI layout with Ollama... (showing response below)")
+            # Set defaults for AI mode: 4 pages, enable bleed
+            ai_pages = 4
+            ai_bleed = 9.0  # Standard bleed for KDP
             generator = AILayoutGenerator()
             layout = generator.generate_layout(ai_prompt, LAYOUT_SCHEMA, gutter_pt=gutter_pt)
             click.echo(f"✅ Generated AI layout for prompt: '{ai_prompt}'")
@@ -111,7 +114,7 @@ def main(trim: str, pages: int, out_path: str, line_spacing_pt: float, line_weig
                 os.makedirs(out_dir, exist_ok=True)
             generate_lined_pages(
                 trim_key=trim,
-                pages=pages,
+                pages=ai_pages,  # Use 4 pages for AI mode
                 out_path=out_path,
                 line_spacing=line_spacing_pt,
                 line_weight=line_weight_pt,
@@ -130,10 +133,10 @@ def main(trim: str, pages: int, out_path: str, line_spacing_pt: float, line_weig
                 footer_font_size=footer_font_size,
                 page_number_font_size=page_number_font_size,
                 set_trimbox=set_trimbox,
-                set_bleedbox=set_bleedbox,
-                bleed_pt=bleed_pt,
+                set_bleedbox=True,  # Enable bleed for AI mode
+                bleed_pt=ai_bleed,  # Use standard bleed
             )
-            click.echo(f"✅ Generated {out_path} with AI-inspired layout")
+            click.echo(f"✅ Generated {out_path} with AI-inspired layout (4 pages, bleed enabled)")
             return
         except Exception as e:
             click.echo(f"❌ Error generating AI layout: {str(e)}")
