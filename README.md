@@ -73,6 +73,66 @@ python main.py --template dot --dot-step-pt 18 --dot-radius-pt 0.6 --pages 2 --o
 python main.py --template habit --habit-rows 20 --habit-cols 7 --pages 2 --out outputs/habit.pdf
 ```
 
+## AI Layout Generation
+
+Generate custom layouts using local AI (Ollama) with intelligent fallback systems. Perfect for creating unique planners, trackers, and notebooks.
+
+### Features
+
+- **Local AI**: Uses Ollama (llama3.2 or tinyllama) for fast, private generation
+- **Intelligent Fallbacks**: If AI fails, automatically generates basic layouts (habit tracker, weekly planner, lined pages)
+- **KDP Compliant**: Automatic 36pt gutter for proper binding, bleed enabled, 4 pages by default
+- **Smart Parsing**: Robust JSON cleaning handles malformed AI responses
+
+### Setup
+
+1) Install and start Ollama:
+```bash
+# Install Ollama (one-time)
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Start Ollama service
+brew services start ollama
+
+# Pull a model (tinyllama is faster, llama3.2 is more capable)
+ollama pull tinyllama
+```
+
+2) Generate AI layouts:
+```bash
+python main.py --ai-prompt "Create a habit tracker with 5 habits and 7 days" --out outputs/ai_habit.pdf
+```
+
+### AI Mode Defaults
+
+- **4 pages** generated automatically
+- **36pt gutter** for KDP binding compliance
+- **Bleed enabled** (9pt standard)
+- **Fallback layouts** if AI fails
+
+### Example AI Prompts
+
+```bash
+# Habit tracker
+python main.py --ai-prompt "Create a habit tracker with 5 habits and 7 days" --out outputs/habit_ai.pdf
+
+# Weekly planner
+python main.py --ai-prompt "Create a weekly planner with hourly slots from 8 AM to 8 PM" --out outputs/planner_ai.pdf
+
+# Goal tracker
+python main.py --ai-prompt "Create a goal tracker with 10 goals and monthly checkboxes" --out outputs/goals_ai.pdf
+
+# Custom notebook
+python main.py --ai-prompt "Create a lined notebook with headers and footers" --out outputs/notebook_ai.pdf
+```
+
+### Advanced Usage
+
+Override defaults if needed:
+```bash
+python main.py --ai-prompt "Create a complex habit tracker" --pages 8 --gutter-pt 18 --out custom_ai.pdf
+```
+
 ## CLI Options
 
 - `--trim` Trim key (default: `6x9`). Defined in `kdp_builder/config/sizes.py`.
@@ -97,6 +157,7 @@ python main.py --template habit --habit-rows 20 --habit-cols 7 --pages 2 --out o
   - `--cover-paper` Paper type: `white|cream|color`
   - `--cover-bleed-pt` Cover bleed (points); e.g. 9pt = 0.125"
   - `--cover-title`, `--cover-subtitle`, `--cover-author`
+- `--ai-prompt` Prompt for AI-generated layout (e.g., 'Create a habit tracker with 30 days'). Uses Ollama for local generation.
 - `--validate-path` Validate an existing PDF and exit.
 - `--validate-trim` Trim key used for validation (defaults to `--trim`).
  - `--validate-verbose` Print verbose diagnostics during validation (Do/Form counts, DPI placements).
@@ -174,16 +235,17 @@ Generated files are written to `outputs/` (ignored by git). Override with `--out
 
 ## Roadmap
 
-- Templates: grid, dot grid, habit/expense trackers.
-- Validator: safe area checks, line thickness, font embedding.
+- Templates: grid, dot grid, habit/expense trackers. ✅ **Implemented**
+- Validator: safe area checks, line thickness, font embedding. ✅ **Implemented**
 - Covers: vector typography + color systems; optional SDXL artwork.
-- AI: Ollama-driven JSON layout generation (local), Bedrock option.
+- AI: Ollama-driven JSON layout generation (local), Bedrock option. ✅ **Implemented (Ollama)**
 - Web UI: FastAPI + React for preview, drag-and-drop adjustments.
 
 ## Tech Stack
 
-- **Python**: ReportLab, Click (CLI), pikepdf (PDF parsing/validation).
-- Optional/Planned: Typer, FastAPI, Ollama (local LLM), Diffusers/SDXL, OpenCV, Tesseract.
+- **Python**: ReportLab, Click (CLI), pikepdf (PDF parsing/validation), requests (Ollama API).
+- **AI**: Ollama (local LLM for layout generation) ✅ **Implemented**
+- Optional/Planned: Typer, FastAPI, Bedrock (AWS AI), Diffusers/SDXL, OpenCV, Tesseract.
 
 ## Contributing
 
