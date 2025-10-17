@@ -138,6 +138,16 @@ Generate the layout JSON now - ONLY the JSON object, nothing else:
             layout_str = re.sub(r'^\[\s*', '{', layout_str)  # Fix array start
             layout_str = re.sub(r'\s*\]$', '}', layout_str)  # Fix array end
 
+            # Remove any text that looks like explanations or metadata
+            layout_str = re.sub(r'^[A-Za-z\s]+:\s*', '', layout_str)  # Remove "Response:" type prefixes
+            layout_str = re.sub(r'^[^{]*\{', '{', layout_str)  # Ensure starts with {
+
+            # Clean up any remaining non-JSON characters at the end
+            layout_str = re.sub(r'[^}]*$', '}', layout_str)
+
+            # Fix trailing commas before closing brackets
+            layout_str = re.sub(r',(\s*[\]}])', r'\1', layout_str)
+
             # Fix common issues: remove extra keys like 'type' and 'required' if present
             try:
                 parsed = json.loads(layout_str)
@@ -163,11 +173,18 @@ Generate the layout JSON now - ONLY the JSON object, nothing else:
                             except json.JSONDecodeError:
                                 continue
                         else:
-                            raise RuntimeError(f"Could not parse AI response as valid JSON. Response preview: {layout_str[:200]}...")
+                            # Last resort: try to manually construct a basic layout
+                            layout = {"pages": []}
+                            click.echo("⚠️ Warning: AI response was malformed, using empty layout", err=True)
                 else:
                     # Last resort: try to fix common issues like trailing commas
-                    layout_str = re.sub(r',(\s*[}\]])', r'\1', layout_str)
-                    layout = json.loads(layout_str)
+                    layout_str = re.sub(r',(\s*[\]}])', r'\1', layout_str)
+                    try:
+                        layout = json.loads(layout_str)
+                    except json.JSONDecodeError:
+                        # Ultimate fallback: create empty layout
+                        layout = {"pages": []}
+                        click.echo("⚠️ Warning: Could not parse AI response, using empty layout", err=True)
             # Post-process to adjust positions for gutters (if not handled by AI)
             layout = self._apply_gutters(layout, gutter_pt)
             return layout
