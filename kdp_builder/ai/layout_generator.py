@@ -5,7 +5,8 @@ from typing import Dict, List, Any
 import click
 
 class AILayoutGenerator:
-    def __init__(self, model: str = "llama3.2", base_url: str = "http://localhost:11434"):
+    def __init__(self, model: str = "tinyllama", base_url: str = "http://localhost:11434"):
+        # Using tinyllama for faster local AI generation (1.1B params vs llama3.2's 3B)
         self.model = model
         self.base_url = base_url
 
@@ -26,11 +27,34 @@ class AILayoutGenerator:
         full_prompt = f"""
 You are an expert layout designer for KDP book interiors. Generate a JSON layout based on the following prompt and schema.
 
+IMPORTANT: You must output ONLY valid JSON that matches the schema exactly. Do NOT include explanations, examples, or any text outside the JSON.
+
 Prompt: {prompt} {gutter_prompt}
 
 Schema: {json.dumps(schema, indent=2)}
 
-Output only valid JSON matching the schema. Ensure elements respect even/odd page gutters for binding.
+Output ONLY the JSON object with "pages" array containing page objects with "page_number" and "elements" array. Each element must have "type", "x", "y", "width", "height" and optionally "content" and "style".
+
+Example format:
+{{
+  "pages": [
+    {{
+      "page_number": 1,
+      "elements": [
+        {{
+          "type": "text",
+          "x": 0,
+          "y": 0,
+          "width": 100,
+          "height": 20,
+          "content": "Sample text"
+        }}
+      ]
+    }}
+  ]
+}}
+
+Generate the layout JSON now:
 """
 
         try:
@@ -68,9 +92,11 @@ Output only valid JSON matching the schema. Ensure elements respect even/odd pag
                 layout_str = layout_str[7:]
             if layout_str.endswith("```"):
                 layout_str = layout_str[:-3]
+
             # Remove any leading/trailing non-JSON text
             layout_str = re.sub(r'^[^{]*', '', layout_str)  # Remove anything before {
             layout_str = re.sub(r'}[^}]*$', '}', layout_str)  # Remove anything after }
+
             # Fix common issues: remove extra keys like 'type' and 'required' if present
             try:
                 parsed = json.loads(layout_str)
@@ -84,7 +110,19 @@ Output only valid JSON matching the schema. Ensure elements respect even/odd pag
                 pages_match = re.search(r'("pages":\s*\[.*\])', layout_str, re.DOTALL)
                 if pages_match:
                     layout_str = '{' + pages_match.group(1) + '}'
-                    layout = json.loads(layout_str)
+                    try:
+                        layout = json.loads(layout_str)
+                    except json.JSONDecodeError:
+                        # Try to find a complete JSON object within the string
+                        json_objects = re.findall(r'\{[^}]*"pages"[^}]*\}', layout_str, re.DOTALL)
+                        for obj in json_objects:
+                            try:
+                                layout = json.loads(obj)
+                                break
+                            except json.JSONDecodeError:
+                                continue
+                        else:
+                            raise RuntimeError(f"Could not parse AI response as valid JSON. Response preview: {layout_str[:200]}...")
                 else:
                     # Last resort: try to fix common issues like trailing commas
                     layout_str = re.sub(r',(\s*[}\]])', r'\1', layout_str)
@@ -130,7 +168,7 @@ LAYOUT_SCHEMA = {
                         "items": {
                             "type": "object",
                             "properties": {
-                                "type": {"type": "string", "enum": ["text", "line", "grid", "dot_grid"]},
+                                "type": {"type": "string", "enum": ["text", "line", "grid", "dot_grid", "checkbox", "image", "rectangle"]},
                                 "x": {"type": "number"},
                                 "y": {"type": "number"},
                                 "width": {"type": "number"},
