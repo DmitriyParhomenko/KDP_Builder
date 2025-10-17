@@ -191,6 +191,11 @@ Generate the layout JSON now - ONLY the JSON object, nothing else:
                 click.echo("🤖 AI failed, using fallback layout generator...", err=True)
                 layout = self._generate_fallback_layout(prompt, gutter_pt)
 
+            # Ensure we always return a valid layout
+            if not layout or "pages" not in layout:
+                click.echo("⚠️ Fallback also failed, using minimal layout", err=True)
+                layout = {"pages": []}
+
             # Post-process to adjust positions for gutters (if not handled by AI)
             layout = self._apply_gutters(layout, gutter_pt)
             return layout
@@ -227,6 +232,9 @@ Generate the layout JSON now - ONLY the JSON object, nothing else:
             return self._generate_basic_weekly_planner(gutter_pt)
         else:
             return self._generate_basic_lined_layout(gutter_pt)
+
+        # This should never be reached, but just in case
+        return {"pages": []}
 
     def _generate_basic_habit_tracker(self, gutter_pt: float) -> Dict[str, Any]:
         """Generate a simple habit tracker layout."""
