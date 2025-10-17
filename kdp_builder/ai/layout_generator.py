@@ -128,9 +128,15 @@ Generate the layout JSON now - ONLY the JSON object, nothing else:
             if layout_str.endswith("```"):
                 layout_str = layout_str[:-3]
 
-            # Remove any leading/trailing non-JSON text
+            # Remove any leading/trailing non-JSON text - handle cases like [Object] or other prefixes
             layout_str = re.sub(r'^[^{]*', '', layout_str)  # Remove anything before {
             layout_str = re.sub(r'}[^}]*$', '}', layout_str)  # Remove anything after }
+
+            # Additional cleaning for common AI response artifacts
+            layout_str = re.sub(r'^\[Object\]\s*', '', layout_str)  # Remove [Object] prefix
+            layout_str = re.sub(r'^Object\s*', '', layout_str)  # Remove Object prefix
+            layout_str = re.sub(r'^\[\s*', '{', layout_str)  # Fix array start
+            layout_str = re.sub(r'\s*\]$', '}', layout_str)  # Fix array end
 
             # Fix common issues: remove extra keys like 'type' and 'required' if present
             try:
