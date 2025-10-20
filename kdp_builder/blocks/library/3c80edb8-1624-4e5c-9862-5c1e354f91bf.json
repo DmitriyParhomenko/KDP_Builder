@@ -1,0 +1,55 @@
+{
+  "id": "3c80edb8-1624-4e5c-9862-5c1e354f91bf",
+  "name": "Date Header",
+  "category": "header",
+  "complexity": "moderate",
+  "description": "Date display with day of week",
+  "tags": [
+    "date",
+    "header",
+    "daily"
+  ],
+  "dimensions": {
+    "width": 400,
+    "height": 50,
+    "flexible_width": true,
+    "flexible_height": false
+  },
+  "elements": [
+    {
+      "type": "text",
+      "x": 20,
+      "y": 30,
+      "width": 150,
+      "height": 20,
+      "content": "{{day_of_week}}",
+      "style": {
+        "fontFamily": "Helvetica",
+        "fontSize": 12,
+        "color": "#666666"
+      }
+    },
+    {
+      "type": "text",
+      "x": 20,
+      "y": 10,
+      "width": 200,
+      "height": 25,
+      "content": "{{date}}",
+      "style": {
+        "fontFamily": "Helvetica-Bold",
+        "fontSize": 18,
+        "color": "#000000"
+      }
+    }
+  ],
+  "parameters": {
+    "day_of_week": "Monday",
+    "date": "January 1, 2025"
+  },
+  "usage_count": 4,
+  "success_rate": 1.0,
+  "created_at": "2025-10-20T13:22:47.806407",
+  "updated_at": "2025-10-20T13:28:26.824521",
+  "source": "manual"
+}
