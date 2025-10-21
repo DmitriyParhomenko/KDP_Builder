@@ -1,0 +1,452 @@
+{
+  "id": "c2ccaefd-6541-4f54-beb2-1174125fbe99",
+  "name": "Etsy Checkbox Grid",
+  "category": "habit_tracker",
+  "complexity": "complex",
+  "description": "Professional checkbox grid like Etsy habit trackers",
+  "tags": [
+    "etsy",
+    "professional",
+    "checkbox",
+    "grid",
+    "habit"
+  ],
+  "dimensions": {
+    "width": 400,
+    "height": 180,
+    "flexible_width": true,
+    "flexible_height": true
+  },
+  "elements": [
+    {
+      "type": "rectangle",
+      "x": 20,
+      "y": 150,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 70,
+      "y": 150,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 120,
+      "y": 150,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 170,
+      "y": 150,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 220,
+      "y": 150,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 270,
+      "y": 150,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 320,
+      "y": 150,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 20,
+      "y": 120,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 70,
+      "y": 120,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 120,
+      "y": 120,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 170,
+      "y": 120,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 220,
+      "y": 120,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 270,
+      "y": 120,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 320,
+      "y": 120,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 20,
+      "y": 90,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 70,
+      "y": 90,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 120,
+      "y": 90,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 170,
+      "y": 90,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 220,
+      "y": 90,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 270,
+      "y": 90,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 320,
+      "y": 90,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 20,
+      "y": 60,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 70,
+      "y": 60,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 120,
+      "y": 60,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 170,
+      "y": 60,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 220,
+      "y": 60,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 270,
+      "y": 60,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 320,
+      "y": 60,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 20,
+      "y": 30,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 70,
+      "y": 30,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 120,
+      "y": 30,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 170,
+      "y": 30,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 220,
+      "y": 30,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 270,
+      "y": 30,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 320,
+      "y": 30,
+      "width": 15,
+      "height": 15,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    }
+  ],
+  "parameters": {
+    "rows": 5,
+    "cols": 7,
+    "checkbox_size": 15
+  },
+  "usage_count": 0,
+  "success_rate": 1.0,
+  "created_at": "2025-10-21T14:04:21.104303",
+  "updated_at": "2025-10-21T14:04:21.104304",
+  "source": "manual"
+}

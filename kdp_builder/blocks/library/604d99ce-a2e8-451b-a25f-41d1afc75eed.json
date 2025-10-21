@@ -1,0 +1,162 @@
+{
+  "id": "604d99ce-a2e8-451b-a25f-41d1afc75eed",
+  "name": "Lined Notes Section",
+  "category": "note_section",
+  "complexity": "simple",
+  "description": "Lined area for notes",
+  "tags": [
+    "notes",
+    "lined",
+    "writing"
+  ],
+  "dimensions": {
+    "width": 400,
+    "height": 200,
+    "flexible_width": true,
+    "flexible_height": true
+  },
+  "elements": [
+    {
+      "type": "text",
+      "x": 10,
+      "y": 185,
+      "width": 80,
+      "height": 15,
+      "content": "Notes:",
+      "style": {
+        "fontFamily": "Helvetica",
+        "fontSize": 11,
+        "color": "#666666"
+      }
+    },
+    {
+      "type": "line",
+      "x": 10,
+      "y": 170,
+      "width": 380,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "line",
+      "x": 10,
+      "y": 152,
+      "width": 380,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "line",
+      "x": 10,
+      "y": 134,
+      "width": 380,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "line",
+      "x": 10,
+      "y": 116,
+      "width": 380,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "line",
+      "x": 10,
+      "y": 98,
+      "width": 380,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "line",
+      "x": 10,
+      "y": 80,
+      "width": 380,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "line",
+      "x": 10,
+      "y": 62,
+      "width": 380,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "line",
+      "x": 10,
+      "y": 44,
+      "width": 380,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "line",
+      "x": 10,
+      "y": 26,
+      "width": 380,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "line",
+      "x": 10,
+      "y": 8,
+      "width": 380,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#CCCCCC"
+      }
+    }
+  ],
+  "parameters": {
+    "num_lines": 10,
+    "line_spacing": 18
+  },
+  "usage_count": 0,
+  "success_rate": 1.0,
+  "created_at": "2025-10-21T14:04:21.104134",
+  "updated_at": "2025-10-21T14:04:21.104134",
+  "source": "manual"
+}

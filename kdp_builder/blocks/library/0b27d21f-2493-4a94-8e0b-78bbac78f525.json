@@ -1,0 +1,510 @@
+{
+  "id": "0b27d21f-2493-4a94-8e0b-78bbac78f525",
+  "name": "Etsy Meal Planner Grid",
+  "category": "checklist",
+  "complexity": "complex",
+  "description": "Professional weekly meal planner grid like Etsy",
+  "tags": [
+    "etsy",
+    "professional",
+    "meal",
+    "planner",
+    "weekly"
+  ],
+  "dimensions": {
+    "width": 400,
+    "height": 200,
+    "flexible_width": true,
+    "flexible_height": true
+  },
+  "elements": [
+    {
+      "type": "text",
+      "x": 80,
+      "y": 180,
+      "width": 40,
+      "height": 12,
+      "content": "MON",
+      "style": {
+        "fontFamily": "Helvetica-Bold",
+        "fontSize": 8,
+        "color": "#4A4A4A"
+      }
+    },
+    {
+      "type": "text",
+      "x": 125,
+      "y": 180,
+      "width": 40,
+      "height": 12,
+      "content": "TUE",
+      "style": {
+        "fontFamily": "Helvetica-Bold",
+        "fontSize": 8,
+        "color": "#4A4A4A"
+      }
+    },
+    {
+      "type": "text",
+      "x": 170,
+      "y": 180,
+      "width": 40,
+      "height": 12,
+      "content": "WED",
+      "style": {
+        "fontFamily": "Helvetica-Bold",
+        "fontSize": 8,
+        "color": "#4A4A4A"
+      }
+    },
+    {
+      "type": "text",
+      "x": 215,
+      "y": 180,
+      "width": 40,
+      "height": 12,
+      "content": "THU",
+      "style": {
+        "fontFamily": "Helvetica-Bold",
+        "fontSize": 8,
+        "color": "#4A4A4A"
+      }
+    },
+    {
+      "type": "text",
+      "x": 260,
+      "y": 180,
+      "width": 40,
+      "height": 12,
+      "content": "FRI",
+      "style": {
+        "fontFamily": "Helvetica-Bold",
+        "fontSize": 8,
+        "color": "#4A4A4A"
+      }
+    },
+    {
+      "type": "text",
+      "x": 305,
+      "y": 180,
+      "width": 40,
+      "height": 12,
+      "content": "SAT",
+      "style": {
+        "fontFamily": "Helvetica-Bold",
+        "fontSize": 8,
+        "color": "#4A4A4A"
+      }
+    },
+    {
+      "type": "text",
+      "x": 350,
+      "y": 180,
+      "width": 40,
+      "height": 12,
+      "content": "SUN",
+      "style": {
+        "fontFamily": "Helvetica-Bold",
+        "fontSize": 8,
+        "color": "#4A4A4A"
+      }
+    },
+    {
+      "type": "text",
+      "x": 10,
+      "y": 150,
+      "width": 60,
+      "height": 12,
+      "content": "BREAKFAST",
+      "style": {
+        "fontFamily": "Helvetica",
+        "fontSize": 7,
+        "color": "#6B6B6B"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 80,
+      "y": 140,
+      "width": 40,
+      "height": 30,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 125,
+      "y": 140,
+      "width": 40,
+      "height": 30,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 170,
+      "y": 140,
+      "width": 40,
+      "height": 30,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 215,
+      "y": 140,
+      "width": 40,
+      "height": 30,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 260,
+      "y": 140,
+      "width": 40,
+      "height": 30,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 305,
+      "y": 140,
+      "width": 40,
+      "height": 30,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 350,
+      "y": 140,
+      "width": 40,
+      "height": 30,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "text",
+      "x": 10,
+      "y": 115,
+      "width": 60,
+      "height": 12,
+      "content": "LUNCH",
+      "style": {
+        "fontFamily": "Helvetica",
+        "fontSize": 7,
+        "color": "#6B6B6B"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 80,
+      "y": 105,
+      "width": 40,
+      "height": 30,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 125,
+      "y": 105,
+      "width": 40,
+      "height": 30,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 170,
+      "y": 105,
+      "width": 40,
+      "height": 30,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 215,
+      "y": 105,
+      "width": 40,
+      "height": 30,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 260,
+      "y": 105,
+      "width": 40,
+      "height": 30,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 305,
+      "y": 105,
+      "width": 40,
+      "height": 30,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 350,
+      "y": 105,
+      "width": 40,
+      "height": 30,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "text",
+      "x": 10,
+      "y": 80,
+      "width": 60,
+      "height": 12,
+      "content": "DINNER",
+      "style": {
+        "fontFamily": "Helvetica",
+        "fontSize": 7,
+        "color": "#6B6B6B"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 80,
+      "y": 70,
+      "width": 40,
+      "height": 30,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 125,
+      "y": 70,
+      "width": 40,
+      "height": 30,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 170,
+      "y": 70,
+      "width": 40,
+      "height": 30,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 215,
+      "y": 70,
+      "width": 40,
+      "height": 30,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 260,
+      "y": 70,
+      "width": 40,
+      "height": 30,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 305,
+      "y": 70,
+      "width": 40,
+      "height": 30,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 350,
+      "y": 70,
+      "width": 40,
+      "height": 30,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "text",
+      "x": 10,
+      "y": 45,
+      "width": 60,
+      "height": 12,
+      "content": "SNACKS",
+      "style": {
+        "fontFamily": "Helvetica",
+        "fontSize": 7,
+        "color": "#6B6B6B"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 80,
+      "y": 35,
+      "width": 40,
+      "height": 30,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 125,
+      "y": 35,
+      "width": 40,
+      "height": 30,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 170,
+      "y": 35,
+      "width": 40,
+      "height": 30,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 215,
+      "y": 35,
+      "width": 40,
+      "height": 30,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 260,
+      "y": 35,
+      "width": 40,
+      "height": 30,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 305,
+      "y": 35,
+      "width": 40,
+      "height": 30,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "rectangle",
+      "x": 350,
+      "y": 35,
+      "width": 40,
+      "height": 30,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#E8E8E8"
+      }
+    }
+  ],
+  "parameters": {
+    "meals": 4,
+    "days": 7
+  },
+  "usage_count": 0,
+  "success_rate": 1.0,
+  "created_at": "2025-10-21T14:04:21.104328",
+  "updated_at": "2025-10-21T14:04:21.104328",
+  "source": "manual"
+}

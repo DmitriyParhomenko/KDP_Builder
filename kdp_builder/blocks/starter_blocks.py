@@ -878,6 +878,175 @@ def create_starter_blocks():
         parameters={"num_appointments": 3}
     ))
     
+    # === ETSY-INSPIRED PROFESSIONAL BLOCKS ===
+    # Based on analysis of 21 professional Etsy PDFs
+    
+    # 24. Etsy-Style Large Header (48pt)
+    blocks.append(create_block(
+        name="Etsy Large Header",
+        category=BlockCategory.HEADER,
+        complexity=BlockComplexity.SIMPLE,
+        description="Professional large header like Etsy planners (48pt)",
+        tags=["etsy", "professional", "header", "large"],
+        dimensions={"width": 400, "height": 80, "flexible_width": True, "flexible_height": False},
+        elements=[
+            {
+                "type": "text",
+                "x": 200,
+                "y": 40,
+                "width": 300,
+                "height": 50,
+                "content": "HABIT TRACKER",
+                "style": {"fontFamily": "Helvetica-Bold", "fontSize": 48, "color": "#2C2C2C"}
+            }
+        ],
+        parameters={"title": "HABIT TRACKER"}
+    ))
+    
+    # 25. Etsy-Style Checkbox Grid (7x5)
+    checkbox_elements = []
+    rows, cols = 5, 7
+    checkbox_size = 15
+    spacing_x = 50
+    spacing_y = 30
+    start_x = 20
+    start_y = 150
+    
+    for row in range(rows):
+        for col in range(cols):
+            checkbox_elements.append({
+                "type": "rectangle",
+                "x": start_x + (col * spacing_x),
+                "y": start_y - (row * spacing_y),
+                "width": checkbox_size,
+                "height": checkbox_size,
+                "content": "",
+                "style": {"lineWeight": 0.5, "color": "#CCCCCC"}
+            })
+    
+    blocks.append(create_block(
+        name="Etsy Checkbox Grid",
+        category=BlockCategory.HABIT_TRACKER,
+        complexity=BlockComplexity.COMPLEX,
+        description="Professional checkbox grid like Etsy habit trackers",
+        tags=["etsy", "professional", "checkbox", "grid", "habit"],
+        dimensions={"width": 400, "height": 180, "flexible_width": True, "flexible_height": True},
+        elements=checkbox_elements,
+        parameters={"rows": 5, "cols": 7, "checkbox_size": 15}
+    ))
+    
+    # 26. Etsy-Style Lined Section (for writing)
+    line_elements = []
+    num_lines = 15
+    line_spacing = 25
+    start_y = 375
+    
+    for i in range(num_lines):
+        line_elements.append({
+            "type": "line",
+            "x": 20,
+            "y": start_y - (i * line_spacing),
+            "width": 360,
+            "height": 1,
+            "content": "",
+            "style": {"lineWeight": 0.3, "color": "#CCCCCC"}
+        })
+    
+    blocks.append(create_block(
+        name="Etsy Lined Section",
+        category=BlockCategory.NOTE_SECTION,
+        complexity=BlockComplexity.SIMPLE,
+        description="Professional lined section like Etsy planners",
+        tags=["etsy", "professional", "lines", "writing"],
+        dimensions={"width": 400, "height": 375, "flexible_width": True, "flexible_height": True},
+        elements=line_elements,
+        parameters={"num_lines": 15, "line_spacing": 25}
+    ))
+    
+    # 27. Etsy-Style Meal Planner Grid
+    meal_elements = []
+    meals = ["BREAKFAST", "LUNCH", "DINNER", "SNACKS"]
+    days = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+    
+    # Day headers
+    for i, day in enumerate(days):
+        meal_elements.append({
+            "type": "text",
+            "x": 80 + (i * 45),
+            "y": 180,
+            "width": 40,
+            "height": 12,
+            "content": day,
+            "style": {"fontFamily": "Helvetica-Bold", "fontSize": 8, "color": "#4A4A4A"}
+        })
+    
+    # Meal labels and grid
+    for row, meal in enumerate(meals):
+        # Meal label
+        meal_elements.append({
+            "type": "text",
+            "x": 10,
+            "y": 150 - (row * 35),
+            "width": 60,
+            "height": 12,
+            "content": meal,
+            "style": {"fontFamily": "Helvetica", "fontSize": 7, "color": "#6B6B6B"}
+        })
+        
+        # Grid boxes for each day
+        for col in range(7):
+            meal_elements.append({
+                "type": "rectangle",
+                "x": 80 + (col * 45),
+                "y": 140 - (row * 35),
+                "width": 40,
+                "height": 30,
+                "content": "",
+                "style": {"lineWeight": 0.3, "color": "#E8E8E8"}
+            })
+    
+    blocks.append(create_block(
+        name="Etsy Meal Planner Grid",
+        category=BlockCategory.CHECKLIST,
+        complexity=BlockComplexity.COMPLEX,
+        description="Professional weekly meal planner grid like Etsy",
+        tags=["etsy", "professional", "meal", "planner", "weekly"],
+        dimensions={"width": 400, "height": 200, "flexible_width": True, "flexible_height": True},
+        elements=meal_elements,
+        parameters={"meals": 4, "days": 7}
+    ))
+    
+    # 28. Etsy-Style Title with Subtitle
+    blocks.append(create_block(
+        name="Etsy Title with Subtitle",
+        category=BlockCategory.HEADER,
+        complexity=BlockComplexity.MODERATE,
+        description="Large title with smaller subtitle (Etsy style)",
+        tags=["etsy", "professional", "header", "title", "subtitle"],
+        dimensions={"width": 400, "height": 100, "flexible_width": True, "flexible_height": False},
+        elements=[
+            {
+                "type": "text",
+                "x": 200,
+                "y": 70,
+                "width": 300,
+                "height": 50,
+                "content": "WEEKLY PLANNER",
+                "style": {"fontFamily": "Helvetica-Bold", "fontSize": 48, "color": "#2C2C2C"}
+            },
+            {
+                "type": "text",
+                "x": 200,
+                "y": 30,
+                "width": 200,
+                "height": 20,
+                "content": "Stay Organized",
+                "style": {"fontFamily": "Helvetica", "fontSize": 14, "color": "#8B8B8B"}
+            }
+        ],
+        parameters={"title": "WEEKLY PLANNER", "subtitle": "Stay Organized"}
+    ))
+    
     return blocks
 
 

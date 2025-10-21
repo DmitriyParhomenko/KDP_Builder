@@ -1,0 +1,114 @@
+{
+  "id": "8de03fa4-f4bf-4290-81ea-cd55a6fa00a8",
+  "name": "Top Priorities Section",
+  "category": "checklist",
+  "complexity": "simple",
+  "description": "Clean priorities list with checkboxes",
+  "tags": [
+    "priorities",
+    "tasks",
+    "daily",
+    "professional"
+  ],
+  "dimensions": {
+    "width": 400,
+    "height": 100,
+    "flexible_width": true,
+    "flexible_height": false
+  },
+  "elements": [
+    {
+      "type": "text",
+      "x": 10,
+      "y": 85,
+      "width": 150,
+      "height": 12,
+      "content": "TOP PRIORITIES",
+      "style": {
+        "fontFamily": "Helvetica",
+        "fontSize": 9,
+        "color": "#8B8B8B"
+      }
+    },
+    {
+      "type": "checkbox",
+      "x": 10,
+      "y": 65,
+      "width": 10,
+      "height": 10,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "checkbox",
+      "x": 10,
+      "y": 45,
+      "width": 10,
+      "height": 10,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "checkbox",
+      "x": 10,
+      "y": 25,
+      "width": 10,
+      "height": 10,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "line",
+      "x": 25,
+      "y": 65,
+      "width": 365,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.25,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "line",
+      "x": 25,
+      "y": 45,
+      "width": 365,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.25,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "line",
+      "x": 25,
+      "y": 25,
+      "width": 365,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.25,
+        "color": "#E8E8E8"
+      }
+    }
+  ],
+  "parameters": {
+    "num_priorities": 3
+  },
+  "usage_count": 0,
+  "success_rate": 1.0,
+  "created_at": "2025-10-21T14:04:21.104277",
+  "updated_at": "2025-10-21T14:04:21.104278",
+  "source": "manual"
+}

@@ -1,0 +1,54 @@
+{
+  "id": "3fb2ed9d-45d5-43bf-985a-1f78f200121f",
+  "name": "Inspirational Quote Box",
+  "category": "quote_box",
+  "complexity": "simple",
+  "description": "Decorative quote or affirmation",
+  "tags": [
+    "quote",
+    "inspiration",
+    "decorative"
+  ],
+  "dimensions": {
+    "width": 400,
+    "height": 80,
+    "flexible_width": true,
+    "flexible_height": false
+  },
+  "elements": [
+    {
+      "type": "rectangle",
+      "x": 10,
+      "y": 10,
+      "width": 380,
+      "height": 60,
+      "content": "",
+      "style": {
+        "lineWeight": 2,
+        "color": "#FFD93D",
+        "fillColor": "#FFFEF7"
+      }
+    },
+    {
+      "type": "text",
+      "x": 200,
+      "y": 45,
+      "width": 360,
+      "height": 20,
+      "content": "{{quote}}",
+      "style": {
+        "fontFamily": "Helvetica-Oblique",
+        "fontSize": 11,
+        "color": "#666666"
+      }
+    }
+  ],
+  "parameters": {
+    "quote": "Make today amazing"
+  },
+  "usage_count": 0,
+  "success_rate": 1.0,
+  "created_at": "2025-10-21T14:04:21.104195",
+  "updated_at": "2025-10-21T14:04:21.104196",
+  "source": "manual"
+}

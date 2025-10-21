@@ -1,0 +1,42 @@
+{
+  "id": "b1827790-2340-4a6a-a0e5-a6028803b2a7",
+  "name": "Etsy Large Header",
+  "category": "header",
+  "complexity": "simple",
+  "description": "Professional large header like Etsy planners (48pt)",
+  "tags": [
+    "etsy",
+    "professional",
+    "header",
+    "large"
+  ],
+  "dimensions": {
+    "width": 400,
+    "height": 80,
+    "flexible_width": true,
+    "flexible_height": false
+  },
+  "elements": [
+    {
+      "type": "text",
+      "x": 200,
+      "y": 40,
+      "width": 300,
+      "height": 50,
+      "content": "HABIT TRACKER",
+      "style": {
+        "fontFamily": "Helvetica-Bold",
+        "fontSize": 48,
+        "color": "#2C2C2C"
+      }
+    }
+  ],
+  "parameters": {
+    "title": "HABIT TRACKER"
+  },
+  "usage_count": 0,
+  "success_rate": 1.0,
+  "created_at": "2025-10-21T14:04:21.104288",
+  "updated_at": "2025-10-21T14:04:21.104289",
+  "source": "manual"
+}

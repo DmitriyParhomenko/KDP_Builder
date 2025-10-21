@@ -106,6 +106,132 @@ class AIBlockComposer:
             "page_number": page_num,
             "blocks": block_placements
         }
+    
+    def _create_habit_tracker_template(
+        self,
+        page_width: float,
+        page_height: float,
+        gutter_pt: float,
+        page_num: int
+    ) -> Dict[str, Any]:
+        """
+        Create Etsy-style habit tracker template.
+        Based on analyzed patterns: large header + checkbox grid.
+        """
+        is_odd = page_num % 2 == 1
+        left_margin = gutter_pt + 36 if is_odd else 36
+        top_margin = 36
+        
+        content_width = page_width - left_margin - 36
+        
+        # Get Etsy-style blocks
+        header_blocks = self.library.search_blocks(tags=["etsy", "header", "large"])
+        checkbox_blocks = self.library.search_blocks(tags=["etsy", "checkbox", "grid"])
+        lined_blocks = self.library.search_blocks(tags=["etsy", "lines"])
+        
+        block_placements = []
+        current_y = page_height - top_margin
+        
+        # 1. Large Etsy header (80pt height)
+        if header_blocks:
+            block_placements.append({
+                "block_id": header_blocks[0]["id"],
+                "x": left_margin,
+                "y": current_y - 80,
+                "width": content_width,
+                "height": 80
+            })
+            current_y -= 100
+        
+        # 2. Checkbox grid (180pt height)
+        if checkbox_blocks:
+            block_placements.append({
+                "block_id": checkbox_blocks[0]["id"],
+                "x": left_margin,
+                "y": current_y - 180,
+                "width": content_width,
+                "height": 180
+            })
+            current_y -= 200
+        
+        # 3. Lined section for notes
+        if lined_blocks and current_y > 100:
+            remaining_height = current_y - 50
+            block_placements.append({
+                "block_id": lined_blocks[0]["id"],
+                "x": left_margin,
+                "y": remaining_height,
+                "width": content_width,
+                "height": remaining_height
+            })
+        
+        return {
+            "page_number": page_num,
+            "blocks": block_placements
+        }
+    
+    def _create_meal_planner_template(
+        self,
+        page_width: float,
+        page_height: float,
+        gutter_pt: float,
+        page_num: int
+    ) -> Dict[str, Any]:
+        """
+        Create Etsy-style meal planner template.
+        Based on analyzed patterns: large header + meal grid.
+        """
+        is_odd = page_num % 2 == 1
+        left_margin = gutter_pt + 36 if is_odd else 36
+        top_margin = 36
+        
+        content_width = page_width - left_margin - 36
+        
+        # Get Etsy-style blocks
+        header_blocks = self.library.search_blocks(tags=["etsy", "header", "title"])
+        meal_blocks = self.library.search_blocks(tags=["etsy", "meal", "planner"])
+        lined_blocks = self.library.search_blocks(tags=["etsy", "lines"])
+        
+        block_placements = []
+        current_y = page_height - top_margin
+        
+        # 1. Title with subtitle (100pt height)
+        if header_blocks:
+            block_placements.append({
+                "block_id": header_blocks[0]["id"],
+                "x": left_margin,
+                "y": current_y - 100,
+                "width": content_width,
+                "height": 100
+            })
+            current_y -= 120
+        
+        # 2. Meal planner grid (200pt height)
+        if meal_blocks:
+            block_placements.append({
+                "block_id": meal_blocks[0]["id"],
+                "x": left_margin,
+                "y": current_y - 200,
+                "width": content_width,
+                "height": 200
+            })
+            current_y -= 220
+        
+        # 3. Lined section for notes/shopping list
+        if lined_blocks and current_y > 100:
+            remaining_height = current_y - 50
+            block_placements.append({
+                "block_id": lined_blocks[0]["id"],
+                "x": left_margin,
+                "y": remaining_height,
+                "width": content_width,
+                "height": remaining_height
+            })
+        
+        return {
+            "page_number": page_num,
+            "blocks": block_placements
+        }
         
     def compose_planner(
         self,
@@ -130,12 +256,25 @@ class AIBlockComposer:
         """
         click.echo(f"📐 Composing {planner_type} planner with {num_pages} pages...", err=True)
         
-        # Use template-based approach for daily planners (guaranteed correct layout)
-        if planner_type.lower() == "daily":
-            click.echo("✨ Using template-based layout for perfect positioning", err=True)
+        # Use template-based approach for specific planner types (guaranteed correct layout)
+        planner_lower = planner_type.lower()
+        
+        if planner_lower == "daily":
+            click.echo("✨ Using Etsy-style daily planner template", err=True)
+            template_func = self._create_daily_planner_template
+        elif planner_lower == "habit_tracker":
+            click.echo("✨ Using Etsy-style habit tracker template", err=True)
+            template_func = self._create_habit_tracker_template
+        elif planner_lower in ["meal_planner", "meal"]:
+            click.echo("✨ Using Etsy-style meal planner template", err=True)
+            template_func = self._create_meal_planner_template
+        else:
+            template_func = None
+        
+        if template_func:
             pages = []
             for page_num in range(1, num_pages + 1):
-                page = self._create_daily_planner_template(
+                page = template_func(
                     page_width=page_width,
                     page_height=page_height,
                     gutter_pt=gutter_pt,

@@ -1,0 +1,138 @@
+{
+  "id": "d23472ec-2211-4308-8209-9fbb638a0adc",
+  "name": "Water Intake Tracker",
+  "category": "habit_tracker",
+  "complexity": "simple",
+  "description": "8 glasses water tracking",
+  "tags": [
+    "water",
+    "health",
+    "tracker",
+    "daily"
+  ],
+  "dimensions": {
+    "width": 200,
+    "height": 50,
+    "flexible_width": false,
+    "flexible_height": false
+  },
+  "elements": [
+    {
+      "type": "text",
+      "x": 10,
+      "y": 35,
+      "width": 80,
+      "height": 15,
+      "content": "Water:",
+      "style": {
+        "fontFamily": "Helvetica",
+        "fontSize": 10,
+        "color": "#666666"
+      }
+    },
+    {
+      "type": "circle",
+      "x": 60,
+      "y": 30,
+      "width": 12,
+      "height": 12,
+      "content": "",
+      "style": {
+        "lineWeight": 1,
+        "color": "#4ECDC4"
+      }
+    },
+    {
+      "type": "circle",
+      "x": 78,
+      "y": 30,
+      "width": 12,
+      "height": 12,
+      "content": "",
+      "style": {
+        "lineWeight": 1,
+        "color": "#4ECDC4"
+      }
+    },
+    {
+      "type": "circle",
+      "x": 96,
+      "y": 30,
+      "width": 12,
+      "height": 12,
+      "content": "",
+      "style": {
+        "lineWeight": 1,
+        "color": "#4ECDC4"
+      }
+    },
+    {
+      "type": "circle",
+      "x": 114,
+      "y": 30,
+      "width": 12,
+      "height": 12,
+      "content": "",
+      "style": {
+        "lineWeight": 1,
+        "color": "#4ECDC4"
+      }
+    },
+    {
+      "type": "circle",
+      "x": 132,
+      "y": 30,
+      "width": 12,
+      "height": 12,
+      "content": "",
+      "style": {
+        "lineWeight": 1,
+        "color": "#4ECDC4"
+      }
+    },
+    {
+      "type": "circle",
+      "x": 150,
+      "y": 30,
+      "width": 12,
+      "height": 12,
+      "content": "",
+      "style": {
+        "lineWeight": 1,
+        "color": "#4ECDC4"
+      }
+    },
+    {
+      "type": "circle",
+      "x": 168,
+      "y": 30,
+      "width": 12,
+      "height": 12,
+      "content": "",
+      "style": {
+        "lineWeight": 1,
+        "color": "#4ECDC4"
+      }
+    },
+    {
+      "type": "circle",
+      "x": 186,
+      "y": 30,
+      "width": 12,
+      "height": 12,
+      "content": "",
+      "style": {
+        "lineWeight": 1,
+        "color": "#4ECDC4"
+      }
+    }
+  ],
+  "parameters": {
+    "num_glasses": 8
+  },
+  "usage_count": 0,
+  "success_rate": 1.0,
+  "created_at": "2025-10-21T14:04:21.104150",
+  "updated_at": "2025-10-21T14:04:21.104150",
+  "source": "manual"
+}
