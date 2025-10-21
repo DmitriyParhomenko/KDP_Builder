@@ -35,6 +35,78 @@ class AIBlockComposer:
         self.base_url = base_url
         self.library = BlockLibrary(library_path)
         
+    def _create_daily_planner_template(
+        self,
+        page_width: float,
+        page_height: float,
+        gutter_pt: float,
+        page_num: int
+    ) -> Dict[str, Any]:
+        """
+        Create a pre-designed daily planner template with correct positioning.
+        
+        This uses a template-based approach instead of AI to ensure proper layout.
+        """
+        is_odd = page_num % 2 == 1
+        left_margin = gutter_pt + 36 if is_odd else 36
+        right_margin = 36 if is_odd else gutter_pt + 36
+        top_margin = 36
+        bottom_margin = 36
+        
+        # Calculate available content area
+        content_width = page_width - left_margin - right_margin
+        content_height = page_height - top_margin - bottom_margin
+        
+        # Get blocks from library
+        header_blocks = self.library.search_blocks(tags=["daily", "header", "professional"])
+        time_blocks = self.library.search_blocks(tags=["schedule", "hourly", "professional"])
+        notes_blocks = self.library.search_blocks(tags=["notes", "professional"])
+        priorities_blocks = self.library.search_blocks(tags=["priorities", "daily"])
+        
+        block_placements = []
+        current_y = page_height - top_margin
+        
+        # 1. Header at top (50pt)
+        if header_blocks:
+            header = header_blocks[0]
+            block_placements.append({
+                "block_id": header["id"],
+                "x": left_margin,
+                "y": current_y - 50,
+                "width": content_width,
+                "height": 50
+            })
+            current_y -= 70  # Header + gap
+        
+        # 2. Time blocks in middle (takes most space)
+        if time_blocks:
+            time_block = time_blocks[0]
+            time_height = 425  # Fixed height for 6 AM - 10 PM
+            block_placements.append({
+                "block_id": time_block["id"],
+                "x": left_margin,
+                "y": current_y - time_height,
+                "width": content_width,
+                "height": time_height
+            })
+            current_y -= time_height + 20
+        
+        # 3. Notes section at bottom (120pt)
+        if notes_blocks and current_y - 120 > bottom_margin:
+            notes = notes_blocks[0]
+            block_placements.append({
+                "block_id": notes["id"],
+                "x": left_margin,
+                "y": current_y - 120,
+                "width": content_width,
+                "height": 120
+            })
+        
+        return {
+            "page_number": page_num,
+            "blocks": block_placements
+        }
+        
     def compose_planner(
         self,
         planner_type: str,
@@ -56,9 +128,27 @@ class AIBlockComposer:
         Returns:
             Complete planner layout with pages and block placements
         """
-        click.echo(f"🤖 AI Composing {planner_type} planner with {num_pages} pages...", err=True)
+        click.echo(f"📐 Composing {planner_type} planner with {num_pages} pages...", err=True)
         
-        # Get relevant blocks from library
+        # Use template-based approach for daily planners (guaranteed correct layout)
+        if planner_type.lower() == "daily":
+            click.echo("✨ Using template-based layout for perfect positioning", err=True)
+            pages = []
+            for page_num in range(1, num_pages + 1):
+                page = self._create_daily_planner_template(
+                    page_width=page_width,
+                    page_height=page_height,
+                    gutter_pt=gutter_pt,
+                    page_num=page_num
+                )
+                pages.append(page)
+            
+            return {
+                "planner_type": planner_type,
+                "pages": pages
+            }
+        
+        # For other planner types, use AI composition
         relevant_blocks = self._get_relevant_blocks(planner_type)
         
         if not relevant_blocks:
