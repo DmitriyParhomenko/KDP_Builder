@@ -45,7 +45,7 @@ outputs/
 interior.pdf
 cover.pdf
 
-# Training data (Etsy PDFs and analysis results)
+# Training data
 kdp_builder/training_data/etsy_examples/
 kdp_builder/training_data/extracted_blocks/
 kdp_builder/training_data/learned_patterns/
