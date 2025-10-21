@@ -1,5 +1,5 @@
 {
-  "id": "c8464d9a-dcd1-450f-9ede-d948a8721eee",
+  "id": "65951668-a7db-4483-abd4-f47a9a493d7a",
   "name": "Simple Page Header",
   "category": "header",
   "complexity": "simple",
@@ -45,9 +45,9 @@
   "parameters": {
     "title": "Page Title"
   },
-  "usage_count": 5,
+  "usage_count": 0,
   "success_rate": 1.0,
-  "created_at": "2025-10-20T13:22:47.805948",
-  "updated_at": "2025-10-21T13:29:54.869695",
+  "created_at": "2025-10-21T13:28:30.451727",
+  "updated_at": "2025-10-21T13:28:30.451728",
   "source": "manual"
 }

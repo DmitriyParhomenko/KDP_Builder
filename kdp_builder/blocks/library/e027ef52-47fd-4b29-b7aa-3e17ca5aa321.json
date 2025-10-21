@@ -422,9 +422,9 @@
     "start_hour": 6,
     "end_hour": 22
   },
-  "usage_count": 2,
+  "usage_count": 7,
   "success_rate": 1.0,
   "created_at": "2025-10-20T13:22:47.806450",
-  "updated_at": "2025-10-20T13:28:26.824590",
+  "updated_at": "2025-10-21T13:29:54.866466",
   "source": "manual"
 }

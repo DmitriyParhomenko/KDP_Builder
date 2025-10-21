@@ -1,0 +1,90 @@
+{
+  "id": "394e0d1d-d917-432a-b46a-1eec8f53b5d3",
+  "name": "Exercise Tracker",
+  "category": "habit_tracker",
+  "complexity": "moderate",
+  "description": "Exercise type and duration",
+  "tags": [
+    "exercise",
+    "fitness",
+    "health",
+    "daily"
+  ],
+  "dimensions": {
+    "width": 400,
+    "height": 100,
+    "flexible_width": true,
+    "flexible_height": false
+  },
+  "elements": [
+    {
+      "type": "text",
+      "x": 10,
+      "y": 85,
+      "width": 100,
+      "height": 15,
+      "content": "Exercise",
+      "style": {
+        "fontFamily": "Helvetica-Bold",
+        "fontSize": 12,
+        "color": "#000000"
+      }
+    },
+    {
+      "type": "text",
+      "x": 10,
+      "y": 60,
+      "width": 60,
+      "height": 15,
+      "content": "Type:",
+      "style": {
+        "fontFamily": "Helvetica",
+        "fontSize": 10,
+        "color": "#666666"
+      }
+    },
+    {
+      "type": "line",
+      "x": 70,
+      "y": 60,
+      "width": 320,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "text",
+      "x": 10,
+      "y": 35,
+      "width": 60,
+      "height": 15,
+      "content": "Duration:",
+      "style": {
+        "fontFamily": "Helvetica",
+        "fontSize": 10,
+        "color": "#666666"
+      }
+    },
+    {
+      "type": "line",
+      "x": 70,
+      "y": 35,
+      "width": 100,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.3,
+        "color": "#CCCCCC"
+      }
+    }
+  ],
+  "parameters": {},
+  "usage_count": 0,
+  "success_rate": 1.0,
+  "created_at": "2025-10-21T13:28:30.452608",
+  "updated_at": "2025-10-21T13:28:30.452609",
+  "source": "manual"
+}

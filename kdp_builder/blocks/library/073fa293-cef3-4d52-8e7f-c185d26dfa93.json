@@ -1,5 +1,5 @@
 {
-  "id": "3c80edb8-1624-4e5c-9862-5c1e354f91bf",
+  "id": "073fa293-cef3-4d52-8e7f-c185d26dfa93",
   "name": "Date Header",
   "category": "header",
   "complexity": "moderate",
@@ -47,9 +47,9 @@
     "day_of_week": "Monday",
     "date": "January 1, 2025"
   },
-  "usage_count": 5,
+  "usage_count": 0,
   "success_rate": 1.0,
-  "created_at": "2025-10-20T13:22:47.806407",
-  "updated_at": "2025-10-20T21:43:10.379243",
+  "created_at": "2025-10-21T13:28:30.451738",
+  "updated_at": "2025-10-21T13:28:30.451739",
   "source": "manual"
 }

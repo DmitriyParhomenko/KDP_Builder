@@ -1,5 +1,5 @@
 {
-  "id": "46101e2d-f1e8-4651-a7fe-d202033b2070",
+  "id": "fbc646b1-c6e0-4a84-b062-1e4468a9bc93",
   "name": "Water Intake Tracker",
   "category": "habit_tracker",
   "complexity": "simple",
@@ -130,9 +130,9 @@
   "parameters": {
     "num_glasses": 8
   },
-  "usage_count": 3,
+  "usage_count": 0,
   "success_rate": 1.0,
-  "created_at": "2025-10-20T13:22:47.806576",
-  "updated_at": "2025-10-20T21:43:10.387672",
+  "created_at": "2025-10-21T13:28:30.452554",
+  "updated_at": "2025-10-21T13:28:30.452555",
   "source": "manual"
 }

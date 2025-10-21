@@ -1,0 +1,38 @@
+{
+  "id": "b7dc0b91-7efe-49ff-96ce-1e2162c587a5",
+  "name": "Decorative Divider",
+  "category": "divider",
+  "complexity": "simple",
+  "description": "Horizontal divider line",
+  "tags": [
+    "divider",
+    "separator",
+    "decorative"
+  ],
+  "dimensions": {
+    "width": 400,
+    "height": 20,
+    "flexible_width": true,
+    "flexible_height": false
+  },
+  "elements": [
+    {
+      "type": "line",
+      "x": 50,
+      "y": 10,
+      "width": 300,
+      "height": 2,
+      "content": "",
+      "style": {
+        "lineWeight": 2,
+        "color": "#CCCCCC"
+      }
+    }
+  ],
+  "parameters": {},
+  "usage_count": 0,
+  "success_rate": 1.0,
+  "created_at": "2025-10-21T13:28:30.452641",
+  "updated_at": "2025-10-21T13:28:30.452642",
+  "source": "manual"
+}

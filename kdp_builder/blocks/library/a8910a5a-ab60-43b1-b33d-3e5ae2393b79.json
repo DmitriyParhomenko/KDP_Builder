@@ -1,0 +1,114 @@
+{
+  "id": "a8910a5a-ab60-43b1-b33d-3e5ae2393b79",
+  "name": "Appointments Section",
+  "category": "checklist",
+  "complexity": "simple",
+  "description": "Appointments list with clean styling",
+  "tags": [
+    "appointments",
+    "schedule",
+    "daily",
+    "professional"
+  ],
+  "dimensions": {
+    "width": 400,
+    "height": 100,
+    "flexible_width": true,
+    "flexible_height": false
+  },
+  "elements": [
+    {
+      "type": "text",
+      "x": 10,
+      "y": 85,
+      "width": 150,
+      "height": 12,
+      "content": "APPOINTMENTS",
+      "style": {
+        "fontFamily": "Helvetica",
+        "fontSize": 9,
+        "color": "#8B8B8B"
+      }
+    },
+    {
+      "type": "circle",
+      "x": 10,
+      "y": 65,
+      "width": 6,
+      "height": 6,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "circle",
+      "x": 10,
+      "y": 45,
+      "width": 6,
+      "height": 6,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "circle",
+      "x": 10,
+      "y": 25,
+      "width": 6,
+      "height": 6,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#CCCCCC"
+      }
+    },
+    {
+      "type": "line",
+      "x": 25,
+      "y": 65,
+      "width": 365,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.25,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "line",
+      "x": 25,
+      "y": 45,
+      "width": 365,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.25,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "line",
+      "x": 25,
+      "y": 25,
+      "width": 365,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.25,
+        "color": "#E8E8E8"
+      }
+    }
+  ],
+  "parameters": {
+    "num_appointments": 3
+  },
+  "usage_count": 0,
+  "success_rate": 1.0,
+  "created_at": "2025-10-21T13:28:30.452723",
+  "updated_at": "2025-10-21T13:28:30.452723",
+  "source": "manual"
+}

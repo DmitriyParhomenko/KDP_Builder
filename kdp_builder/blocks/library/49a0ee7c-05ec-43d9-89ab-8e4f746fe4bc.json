@@ -1,0 +1,209 @@
+{
+  "id": "49a0ee7c-05ec-43d9-89ab-8e4f746fe4bc",
+  "name": "Monthly Calendar Grid",
+  "category": "monthly_planner",
+  "complexity": "complex",
+  "description": "Month view calendar grid",
+  "tags": [
+    "calendar",
+    "monthly",
+    "grid"
+  ],
+  "dimensions": {
+    "width": 400,
+    "height": 300,
+    "flexible_width": true,
+    "flexible_height": true
+  },
+  "elements": [
+    {
+      "type": "line",
+      "x": 0,
+      "y": 0,
+      "width": 400,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#000000"
+      }
+    },
+    {
+      "type": "line",
+      "x": 0,
+      "y": 50,
+      "width": 400,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#000000"
+      }
+    },
+    {
+      "type": "line",
+      "x": 0,
+      "y": 100,
+      "width": 400,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#000000"
+      }
+    },
+    {
+      "type": "line",
+      "x": 0,
+      "y": 150,
+      "width": 400,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#000000"
+      }
+    },
+    {
+      "type": "line",
+      "x": 0,
+      "y": 200,
+      "width": 400,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#000000"
+      }
+    },
+    {
+      "type": "line",
+      "x": 0,
+      "y": 250,
+      "width": 400,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#000000"
+      }
+    },
+    {
+      "type": "line",
+      "x": 0,
+      "y": 300,
+      "width": 400,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#000000"
+      }
+    },
+    {
+      "type": "line",
+      "x": 0,
+      "y": 0,
+      "width": 1,
+      "height": 300,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#000000"
+      }
+    },
+    {
+      "type": "line",
+      "x": 57,
+      "y": 0,
+      "width": 1,
+      "height": 300,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#000000"
+      }
+    },
+    {
+      "type": "line",
+      "x": 114,
+      "y": 0,
+      "width": 1,
+      "height": 300,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#000000"
+      }
+    },
+    {
+      "type": "line",
+      "x": 171,
+      "y": 0,
+      "width": 1,
+      "height": 300,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#000000"
+      }
+    },
+    {
+      "type": "line",
+      "x": 228,
+      "y": 0,
+      "width": 1,
+      "height": 300,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#000000"
+      }
+    },
+    {
+      "type": "line",
+      "x": 285,
+      "y": 0,
+      "width": 1,
+      "height": 300,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#000000"
+      }
+    },
+    {
+      "type": "line",
+      "x": 342,
+      "y": 0,
+      "width": 1,
+      "height": 300,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#000000"
+      }
+    },
+    {
+      "type": "line",
+      "x": 399,
+      "y": 0,
+      "width": 1,
+      "height": 300,
+      "content": "",
+      "style": {
+        "lineWeight": 0.5,
+        "color": "#000000"
+      }
+    }
+  ],
+  "parameters": {
+    "rows": 6,
+    "cols": 7
+  },
+  "usage_count": 0,
+  "success_rate": 1.0,
+  "created_at": "2025-10-21T13:28:30.451817",
+  "updated_at": "2025-10-21T13:28:30.451818",
+  "source": "manual"
+}

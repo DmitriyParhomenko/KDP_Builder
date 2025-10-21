@@ -11,6 +11,37 @@ def create_starter_blocks():
     """Create a diverse set of starter blocks"""
     blocks = []
     
+    # 0. Professional Daily Planner Header
+    blocks.append(create_block(
+        name="Daily Planner Header",
+        category=BlockCategory.HEADER,
+        complexity=BlockComplexity.SIMPLE,
+        description="Elegant DAILY PLANNER header with serif font",
+        tags=["daily", "header", "elegant", "professional"],
+        dimensions={"width": 400, "height": 50, "flexible_width": True, "flexible_height": False},
+        elements=[
+            {
+                "type": "text",
+                "x": 200,
+                "y": 30,
+                "width": 200,
+                "height": 20,
+                "content": "DAILY PLANNER",
+                "style": {"fontFamily": "Times-Roman", "fontSize": 14, "color": "#2C2C2C"}
+            },
+            {
+                "type": "line",
+                "x": 0,
+                "y": 10,
+                "width": 400,
+                "height": 1,
+                "content": "",
+                "style": {"lineWeight": 0.5, "color": "#CCCCCC"}
+            }
+        ],
+        parameters={}
+    ))
+    
     # 1. Simple Page Header
     blocks.append(create_block(
         name="Simple Page Header",
@@ -73,36 +104,44 @@ def create_starter_blocks():
         parameters={"day_of_week": "Monday", "date": "January 1, 2025"}
     ))
     
-    # 3. Hourly Time Blocks
+    # 3. Beautiful Hourly Time Blocks (6 AM - 10 PM)
+    time_elements = []
+    hours = list(range(6, 23))  # 6 AM to 10 PM (22:00)
+    slot_height = 25
+    start_y = 500
+    
+    for i, hour in enumerate(hours):
+        y_pos = start_y - (i * slot_height)
+        # Time label
+        time_elements.append({
+            "type": "text",
+            "x": 10,
+            "y": y_pos + 5,
+            "width": 45,
+            "height": 12,
+            "content": f"{hour:02d}:00",
+            "style": {"fontFamily": "Helvetica", "fontSize": 8, "color": "#6B6B6B"}
+        })
+        # Horizontal line
+        time_elements.append({
+            "type": "line",
+            "x": 60,
+            "y": y_pos,
+            "width": 340,
+            "height": 1,
+            "content": "",
+            "style": {"lineWeight": 0.25, "color": "#E8E8E8"}
+        })
+    
     blocks.append(create_block(
-        name="Hourly Time Blocks",
+        name="Professional Hourly Schedule",
         category=BlockCategory.TIME_BLOCK,
         complexity=BlockComplexity.COMPLEX,
-        description="Hourly schedule with time labels",
-        tags=["schedule", "hourly", "planner", "daily"],
-        dimensions={"width": 400, "height": 400, "flexible_width": True, "flexible_height": True},
-        elements=[
-            {
-                "type": "text",
-                "x": 10,
-                "y": 380 - (i * 30),
-                "width": 50,
-                "height": 15,
-                "content": f"{hour:02d}:00",
-                "style": {"fontFamily": "Helvetica", "fontSize": 10, "color": "#666666"}
-            } for i, hour in enumerate(range(6, 22))  # 6 AM to 10 PM
-        ] + [
-            {
-                "type": "line",
-                "x": 70,
-                "y": 375 - (i * 30),
-                "width": 320,
-                "height": 1,
-                "content": "",
-                "style": {"lineWeight": 0.3, "color": "#CCCCCC"}
-            } for i in range(16)
-        ],
-        parameters={"start_hour": 6, "end_hour": 22}
+        description="Beautiful hourly schedule 6 AM - 10 PM with elegant styling",
+        tags=["schedule", "hourly", "planner", "daily", "professional"],
+        dimensions={"width": 400, "height": 425, "flexible_width": True, "flexible_height": True},
+        elements=time_elements,
+        parameters={"start_hour": 6, "end_hour": 22, "slot_height": 25}
     ))
     
     # 4. Weekly Habit Tracker
@@ -726,6 +765,117 @@ def create_starter_blocks():
             for y in range(10, 200, 20)
         ],
         parameters={"dot_spacing": 20}
+    ))
+    
+    # 21. Professional Notes Section with Header
+    blocks.append(create_block(
+        name="Professional Notes Section",
+        category=BlockCategory.NOTE_SECTION,
+        complexity=BlockComplexity.SIMPLE,
+        description="Elegant notes section with uppercase header",
+        tags=["notes", "lined", "professional", "daily"],
+        dimensions={"width": 400, "height": 120, "flexible_width": True, "flexible_height": True},
+        elements=[
+            {
+                "type": "text",
+                "x": 10,
+                "y": 105,
+                "width": 80,
+                "height": 12,
+                "content": "NOTES",
+                "style": {"fontFamily": "Helvetica", "fontSize": 9, "color": "#8B8B8B"}
+            },
+            *[{
+                "type": "line",
+                "x": 10,
+                "y": 90 - (i * 18),
+                "width": 380,
+                "height": 1,
+                "content": "",
+                "style": {"lineWeight": 0.25, "color": "#E8E8E8"}
+            } for i in range(5)]
+        ],
+        parameters={"num_lines": 5, "line_spacing": 18}
+    ))
+    
+    # 22. Top Priorities Section
+    blocks.append(create_block(
+        name="Top Priorities Section",
+        category=BlockCategory.CHECKLIST,
+        complexity=BlockComplexity.SIMPLE,
+        description="Clean priorities list with checkboxes",
+        tags=["priorities", "tasks", "daily", "professional"],
+        dimensions={"width": 400, "height": 100, "flexible_width": True, "flexible_height": False},
+        elements=[
+            {
+                "type": "text",
+                "x": 10,
+                "y": 85,
+                "width": 150,
+                "height": 12,
+                "content": "TOP PRIORITIES",
+                "style": {"fontFamily": "Helvetica", "fontSize": 9, "color": "#8B8B8B"}
+            },
+            *[{
+                "type": "checkbox",
+                "x": 10,
+                "y": 65 - (i * 20),
+                "width": 10,
+                "height": 10,
+                "content": "",
+                "style": {"lineWeight": 0.5, "color": "#CCCCCC"}
+            } for i in range(3)],
+            *[{
+                "type": "line",
+                "x": 25,
+                "y": 65 - (i * 20),
+                "width": 365,
+                "height": 1,
+                "content": "",
+                "style": {"lineWeight": 0.25, "color": "#E8E8E8"}
+            } for i in range(3)]
+        ],
+        parameters={"num_priorities": 3}
+    ))
+    
+    # 23. Appointments Section
+    blocks.append(create_block(
+        name="Appointments Section",
+        category=BlockCategory.CHECKLIST,
+        complexity=BlockComplexity.SIMPLE,
+        description="Appointments list with clean styling",
+        tags=["appointments", "schedule", "daily", "professional"],
+        dimensions={"width": 400, "height": 100, "flexible_width": True, "flexible_height": False},
+        elements=[
+            {
+                "type": "text",
+                "x": 10,
+                "y": 85,
+                "width": 150,
+                "height": 12,
+                "content": "APPOINTMENTS",
+                "style": {"fontFamily": "Helvetica", "fontSize": 9, "color": "#8B8B8B"}
+            },
+            *[{
+                "type": "circle",
+                "x": 10,
+                "y": 65 - (i * 20),
+                "width": 6,
+                "height": 6,
+                "content": "",
+                "style": {"lineWeight": 0.5, "color": "#CCCCCC"}
+            } for i in range(3)],
+            *[{
+                "type": "line",
+                "x": 25,
+                "y": 65 - (i * 20),
+                "width": 365,
+                "height": 1,
+                "content": "",
+                "style": {"lineWeight": 0.25, "color": "#E8E8E8"}
+            } for i in range(3)]
+        ],
+        parameters={"num_appointments": 3}
     ))
     
     return blocks

@@ -1,0 +1,103 @@
+{
+  "id": "e8e302ea-e3de-4365-b7a8-86f618e6fc18",
+  "name": "Professional Notes Section",
+  "category": "note_section",
+  "complexity": "simple",
+  "description": "Elegant notes section with uppercase header",
+  "tags": [
+    "notes",
+    "lined",
+    "professional",
+    "daily"
+  ],
+  "dimensions": {
+    "width": 400,
+    "height": 120,
+    "flexible_width": true,
+    "flexible_height": true
+  },
+  "elements": [
+    {
+      "type": "text",
+      "x": 10,
+      "y": 105,
+      "width": 80,
+      "height": 12,
+      "content": "NOTES",
+      "style": {
+        "fontFamily": "Helvetica",
+        "fontSize": 9,
+        "color": "#8B8B8B"
+      }
+    },
+    {
+      "type": "line",
+      "x": 10,
+      "y": 90,
+      "width": 380,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.25,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "line",
+      "x": 10,
+      "y": 72,
+      "width": 380,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.25,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "line",
+      "x": 10,
+      "y": 54,
+      "width": 380,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.25,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "line",
+      "x": 10,
+      "y": 36,
+      "width": 380,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.25,
+        "color": "#E8E8E8"
+      }
+    },
+    {
+      "type": "line",
+      "x": 10,
+      "y": 18,
+      "width": 380,
+      "height": 1,
+      "content": "",
+      "style": {
+        "lineWeight": 0.25,
+        "color": "#E8E8E8"
+      }
+    }
+  ],
+  "parameters": {
+    "num_lines": 5,
+    "line_spacing": 18
+  },
+  "usage_count": 0,
+  "success_rate": 1.0,
+  "created_at": "2025-10-21T13:28:30.452705",
+  "updated_at": "2025-10-21T13:28:30.452706",
+  "source": "manual"
+}
