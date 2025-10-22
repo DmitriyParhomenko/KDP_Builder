@@ -37,13 +37,31 @@ logs/
 .env
 .env.*
 
-# Node (future web UI)
+# Node & Frontend
 node_modules/
+web/frontend/node_modules/
+web/frontend/dist/
+web/frontend/build/
+web/frontend/.vite/
+package-lock.json
+web/frontend/package-lock.json
 
 # Outputs (keep sample directories if added later)
 outputs/
 interior.pdf
 cover.pdf
+
+# Web App Generated Files
+chroma_db/
+designs_storage/
+exports/
+*.pdf
+!README.pdf
+!docs/*.pdf
+
+# Temporary files
+temp_*.pdf
+*.tmp
 
 # Training data
 kdp_builder/training_data/etsy_examples/
