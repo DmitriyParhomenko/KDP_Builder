@@ -6,7 +6,6 @@ from professional Etsy PDFs.
 """
 
 import chromadb
-from chromadb.config import Settings
 from typing import List, Dict, Any, Optional
 import json
 import uuid
@@ -25,11 +24,8 @@ class PatternDatabase:
         self.persist_directory = Path(persist_directory)
         self.persist_directory.mkdir(parents=True, exist_ok=True)
         
-        # Initialize ChromaDB client
-        self.client = chromadb.Client(Settings(
-            chroma_db_impl="duckdb+parquet",
-            persist_directory=str(self.persist_directory)
-        ))
+        # Initialize ChromaDB client with new API
+        self.client = chromadb.PersistentClient(path=str(self.persist_directory))
         
         # Get or create collection
         self.collection = self.client.get_or_create_collection(

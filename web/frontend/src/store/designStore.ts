@@ -69,7 +69,17 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     const index = elements.findIndex(e => e.id === id);
     
     if (index !== -1) {
-      elements[index] = { ...elements[index], ...updates };
+      const currentElement = elements[index];
+      // Merge properties separately to avoid overwriting
+      const mergedProperties = updates.properties 
+        ? { ...currentElement.properties, ...updates.properties }
+        : currentElement.properties;
+      
+      elements[index] = { 
+        ...currentElement, 
+        ...updates,
+        properties: mergedProperties
+      };
       set({ design: newDesign });
       get().saveToHistory();
     }

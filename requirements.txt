@@ -1,3 +1,19 @@
+# Core dependencies
 reportlab==4.0.7
 typer==0.9.0
 pypdf==3.17.4
+click==8.1.7
+pdfplumber==0.11.7
+
+# Web app dependencies
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+python-multipart==0.0.6
+
+# AI dependencies
+chromadb==0.4.24
+ollama==0.1.6
+
+# Utilities
+python-dotenv==1.0.0

@@ -52,15 +52,37 @@ const Canvas = () => {
       }
     });
 
-    // Handle object modification
+    // Handle object modification (move, resize, rotate, text editing complete)
     canvas.on('object:modified', (e) => {
       if (e.target && e.target.data?.id) {
-        updateElement(e.target.data.id, {
+        const updates: any = {
           x: e.target.left || 0,
           y: e.target.top || 0,
           width: (e.target.width || 0) * (e.target.scaleX || 1),
           height: (e.target.height || 0) * (e.target.scaleY || 1),
           rotation: e.target.angle || 0,
+        };
+
+        // For text objects, also update the text content
+        if (e.target.type === 'i-text' || e.target.type === 'text') {
+          const textObj = e.target as fabric.IText;
+          updates.properties = {
+            text: textObj.text || '',
+          };
+        }
+
+        updateElement(e.target.data.id, updates);
+      }
+    });
+
+    // Handle when text editing ends (not during typing)
+    canvas.on('text:editing:exited', (e) => {
+      if (e.target && e.target.data?.id) {
+        const textObj = e.target as fabric.IText;
+        updateElement(e.target.data.id, {
+          properties: {
+            text: textObj.text || '',
+          },
         });
       }
     });
