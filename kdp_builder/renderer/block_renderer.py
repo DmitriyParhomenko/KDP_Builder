@@ -147,9 +147,9 @@ class BlockRenderer:
         """Render text element"""
         content = element.get("content", "")
         
-        # Skip template placeholders
-        if "{{" in content and "}}" in content:
-            content = ""  # Or replace with actual values if available
+        # Only skip if it's ONLY a placeholder, not if it has actual text
+        if content and "{{" in content and "}}" in content and content.strip().startswith("{{"):
+            return  # Skip pure template placeholders
         
         if not content:
             return
@@ -159,7 +159,13 @@ class BlockRenderer:
         # Set font
         font_family = style.get("fontFamily", "Helvetica")
         font_size = style.get("fontSize", 12)
-        c.setFont(font_family, font_size)
+        
+        # Handle font family variations
+        try:
+            c.setFont(font_family, font_size)
+        except:
+            # Fallback to Helvetica if font not found
+            c.setFont("Helvetica", font_size)
         
         # Set color
         color = style.get("color", "#000000")
