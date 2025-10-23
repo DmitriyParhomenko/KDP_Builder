@@ -63,12 +63,31 @@ const Canvas = () => {
           rotation: e.target.angle || 0,
         };
 
-        // For text objects, also update the text content
+        // For text objects, update text content and font size
         if (e.target.type === 'i-text' || e.target.type === 'text') {
           const textObj = e.target as fabric.IText;
+          
+          // Calculate new font size based on scale
+          const originalFontSize = textObj.fontSize || 16;
+          const scaleX = textObj.scaleX || 1;
+          const scaleY = textObj.scaleY || 1;
+          const avgScale = (scaleX + scaleY) / 2;
+          const newFontSize = Math.round(originalFontSize * avgScale);
+          
           updates.properties = {
             text: textObj.text || '',
+            fontSize: newFontSize,
+            fontFamily: textObj.fontFamily || 'Arial',
+            color: textObj.fill || '#000000',
           };
+          
+          // Reset scale after applying to font size
+          textObj.set({
+            fontSize: newFontSize,
+            scaleX: 1,
+            scaleY: 1,
+          });
+          canvas.renderAll();
         }
 
         updateElement(e.target.data.id, updates);
