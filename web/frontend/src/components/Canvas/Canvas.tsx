@@ -205,7 +205,16 @@ const Canvas = () => {
             fontSize: element.properties.fontSize || 12,
             fontFamily: element.properties.fontFamily || 'Helvetica',
             fill: element.properties.color || '#000000',
+            lockScalingFlip: true,
           });
+          if (obj) {
+            (obj as fabric.IText).setControlsVisibility({
+              mt: false, // middle top
+              mb: false, // middle bottom
+              ml: false, // middle left
+              mr: false, // middle right
+            });
+          }
           break;
 
         case 'rectangle':
@@ -255,6 +264,15 @@ const Canvas = () => {
       fontSize: 24,
       fontFamily: 'Helvetica',
       fill: '#000000',
+      lockScalingFlip: true,
+    });
+
+    // Disable side handles, only allow corner resizing
+    text.setControlsVisibility({
+      mt: false, // middle top
+      mb: false, // middle bottom
+      ml: false, // middle left
+      mr: false, // middle right
     });
 
     const id = `text_${Date.now()}`;
