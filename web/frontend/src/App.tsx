@@ -21,11 +21,34 @@ function App() {
   const [aiProgress, setAiProgress] = useState('');
   const [showDebugLogs, setShowDebugLogs] = useState(false);
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // Create new design on mount
   useEffect(() => {
     createNewDesign();
   }, []);
+
+  // Timer for AI generation
+  useEffect(() => {
+    let interval: number;
+    if (isGenerating) {
+      setElapsedTime(0);
+      interval = window.setInterval(() => {
+        setElapsedTime(prev => {
+          const newTime = prev + 1;
+          // Add periodic progress updates
+          if (newTime % 5 === 0) {
+            addDebugLog(`⏱️ Still processing... ${newTime}s elapsed`);
+          }
+          return newTime;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isGenerating]);
 
   const createNewDesign = async () => {
     setIsLoading(true);
@@ -53,15 +76,18 @@ function App() {
     if (!aiPrompt.trim() || !design) return;
 
     setIsLoading(true);
+    setIsGenerating(true);
     setDebugLogs([]);
+    setElapsedTime(0);
     setAiProgress('Initializing AI request...');
-    addDebugLog('Starting AI layout generation');
-    addDebugLog(`Prompt: "${aiPrompt}"`);
-    addDebugLog(`Canvas size: ${design.page_width}x${design.page_height}pt`);
+    addDebugLog('🚀 Starting AI layout generation');
+    addDebugLog(`📝 Prompt: "${aiPrompt}"`);
+    addDebugLog(`📐 Canvas size: ${design.page_width}x${design.page_height}pt`);
+    addDebugLog('⏳ Waiting for Ollama response...');
     
     try {
-      setAiProgress('Sending request to Ollama (Qwen2.5:7b)...');
-      addDebugLog('Connecting to AI backend...');
+      setAiProgress('🤖 Sending request to Ollama (Qwen2.5:7b)...');
+      addDebugLog('🔗 Connecting to AI backend...');
       
       const startTime = Date.now();
       const result = await aiAPI.suggest(
@@ -71,17 +97,17 @@ function App() {
       );
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
       
-      addDebugLog(`Response received in ${duration}s`);
-      setAiProgress('Processing AI response...');
+      addDebugLog(`✅ Response received in ${duration}s`);
+      setAiProgress('⚙️ Processing AI response...');
 
       if (result.success && result.elements) {
-        addDebugLog(`Generated ${result.elements.length} elements`);
-        setAiProgress(`Adding ${result.elements.length} elements to canvas...`);
+        addDebugLog(`✨ Generated ${result.elements.length} elements`);
+        setAiProgress(`📦 Adding ${result.elements.length} elements to canvas...`);
         
         // Add AI-generated elements to current page
         const newDesign = { ...design };
         result.elements.forEach((elem: any, index: number) => {
-          addDebugLog(`Element ${index + 1}: ${elem.type} at (${elem.x}, ${elem.y})`);
+          addDebugLog(`  ${index + 1}. ${elem.type} at (${Math.round(elem.x)}, ${Math.round(elem.y)})`);
           newDesign.pages[0].elements.push({
             id: `elem_${Date.now()}_${Math.random()}`,
             type: elem.type,
@@ -116,6 +142,7 @@ function App() {
       setAiProgress(`❌ Error: ${error.message || 'Request failed'}`);
     } finally {
       setIsLoading(false);
+      setIsGenerating(false);
     }
   };
 
@@ -249,9 +276,12 @@ function App() {
             {/* Progress Status */}
             {isLoading && aiProgress && (
               <div className="mt-4 p-3 bg-blue-900 bg-opacity-30 border border-blue-600 rounded">
-                <div className="flex items-center gap-2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400"></div>
-                  <span className="text-sm text-blue-300">{aiProgress}</span>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400"></div>
+                    <span className="text-sm text-blue-300">{aiProgress}</span>
+                  </div>
+                  <span className="text-xs text-blue-400 font-mono">{elapsedTime}s</span>
                 </div>
               </div>
             )}
