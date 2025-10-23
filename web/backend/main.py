@@ -69,4 +69,10 @@ if __name__ == "__main__":
     print("🚀 Starting KDP Visual Editor API...")
     print("📚 API Documentation: http://localhost:8000/docs")
     print("🎨 Frontend will run on: http://localhost:5173")
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(
+        app, 
+        host="0.0.0.0", 
+        port=8000, 
+        reload=True,
+        timeout_keep_alive=300  # 5 minutes for AI requests
+    )

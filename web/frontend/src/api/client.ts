@@ -49,6 +49,8 @@ export const aiAPI = {
       prompt,
       page_width: pageWidth,
       page_height: pageHeight,
+    }, {
+      timeout: 300000, // 5 minutes for AI generation
     });
     return response.data;
   },
