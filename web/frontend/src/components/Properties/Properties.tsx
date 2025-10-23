@@ -30,7 +30,7 @@ const Properties = () => {
     });
   };
 
-  const handlePositionChange = (key: 'x' | 'y' | 'width' | 'height', value: number) => {
+  const handlePositionChange = (key: 'x' | 'y' | 'width' | 'height' | 'rotation', value: number) => {
     updateElement(element.id, { [key]: value });
   };
 
@@ -78,6 +78,18 @@ const Properties = () => {
               className="w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm"
             />
           </div>
+        </div>
+        <div className="mt-2">
+          <label className="text-xs text-gray-400">Rotation (degrees)</label>
+          <input
+            type="number"
+            value={Math.round(element.rotation || 0)}
+            onChange={(e) => handlePositionChange('rotation', parseFloat(e.target.value))}
+            className="w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm"
+            step="1"
+            min="0"
+            max="360"
+          />
         </div>
       </div>
 

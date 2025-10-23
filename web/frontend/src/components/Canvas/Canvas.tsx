@@ -207,12 +207,13 @@ const Canvas = () => {
             fill: element.properties.color || '#000000',
             lockScalingFlip: true,
           });
+          // Disable side handles, only allow corner resizing
           if (obj) {
             (obj as fabric.IText).setControlsVisibility({
-              mt: false, // middle top
-              mb: false, // middle bottom
-              ml: false, // middle left
-              mr: false, // middle right
+              mt: false,
+              mb: false,
+              ml: false,
+              mr: false,
             });
           }
           break;
@@ -249,7 +250,10 @@ const Canvas = () => {
       }
 
       if (obj) {
-        obj.set({ data: { id: element.id } });
+        obj.set({ 
+          data: { id: element.id },
+          angle: element.rotation || 0
+        });
         canvas.add(obj);
       }
     });
@@ -269,10 +273,10 @@ const Canvas = () => {
 
     // Disable side handles, only allow corner resizing
     text.setControlsVisibility({
-      mt: false, // middle top
-      mb: false, // middle bottom
-      ml: false, // middle left
-      mr: false, // middle right
+      mt: false,
+      mb: false,
+      ml: false,
+      mr: false,
     });
 
     const id = `text_${Date.now()}`;
