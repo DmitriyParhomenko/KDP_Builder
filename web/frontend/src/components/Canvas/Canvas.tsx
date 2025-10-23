@@ -9,6 +9,7 @@ import { useDesignStore } from '../../store/designStore';
 const Canvas = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricRef = useRef<fabric.Canvas | null>(null);
+  const isSyncingRef = useRef(false); // Prevent infinite loops
   
   const { design, currentPage, activeTool, addElement, updateElement, selectElement } = useDesignStore();
 
@@ -54,7 +55,9 @@ const Canvas = () => {
 
     // Handle object modification (move, resize, rotate, text editing complete)
     canvas.on('object:modified', (e) => {
-      if (e.target && e.target.data?.id) {
+      if (e.target && e.target.data?.id && !isSyncingRef.current) {
+        isSyncingRef.current = true; // Set flag to prevent sync loop
+        
         const updates: any = {
           x: e.target.left || 0,
           y: e.target.top || 0,
@@ -91,6 +94,11 @@ const Canvas = () => {
         }
 
         updateElement(e.target.data.id, updates);
+        
+        // Reset flag after a short delay
+        setTimeout(() => {
+          isSyncingRef.current = false;
+        }, 50);
       }
     });
 
@@ -148,6 +156,66 @@ const Canvas = () => {
         canvas.selection = true;
     }
   }, [activeTool]);
+
+  // Sync store changes back to canvas (when properties panel updates)
+  useEffect(() => {
+    if (!fabricRef.current || !design || isSyncingRef.current) return;
+
+    const canvas = fabricRef.current;
+    const currentPageElements = design.pages[currentPage]?.elements || [];
+
+    // Update each canvas object from store
+    currentPageElements.forEach(element => {
+      const canvasObj = canvas.getObjects().find((obj: any) => obj.data?.id === element.id);
+      
+      if (canvasObj) {
+        // Update position, size, rotation
+        canvasObj.set({
+          left: element.x,
+          top: element.y,
+          angle: element.rotation || 0,
+        });
+
+        // Update type-specific properties
+        if (element.type === 'text' && (canvasObj.type === 'i-text' || canvasObj.type === 'text')) {
+          const textObj = canvasObj as fabric.IText;
+          textObj.set({
+            text: element.properties.text || '',
+            fontSize: element.properties.fontSize || 12,
+            fontFamily: element.properties.fontFamily || 'Helvetica',
+            fill: element.properties.color || '#000000',
+          });
+        } else if (element.type === 'rectangle' && canvasObj.type === 'rect') {
+          const rectObj = canvasObj as fabric.Rect;
+          rectObj.set({
+            width: element.width,
+            height: element.height,
+            fill: element.properties.fill || 'transparent',
+            stroke: element.properties.stroke || '#000000',
+            strokeWidth: element.properties.strokeWidth || 1,
+          });
+        } else if (element.type === 'circle' && canvasObj.type === 'circle') {
+          const circleObj = canvasObj as fabric.Circle;
+          circleObj.set({
+            radius: Math.min(element.width, element.height) / 2,
+            fill: element.properties.fill || 'transparent',
+            stroke: element.properties.stroke || '#000000',
+            strokeWidth: element.properties.strokeWidth || 1,
+          });
+        } else if (element.type === 'line' && canvasObj.type === 'line') {
+          const lineObj = canvasObj as fabric.Line;
+          lineObj.set({
+            stroke: element.properties.stroke || '#000000',
+            strokeWidth: element.properties.strokeWidth || 1,
+          });
+        }
+
+        canvasObj.setCoords();
+      }
+    });
+
+    canvas.renderAll();
+  }, [design, currentPage]);
 
   const addGrid = (canvas: fabric.Canvas, width: number, height: number) => {
     const gridSize = 36; // 0.5 inch
