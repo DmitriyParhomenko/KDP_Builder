@@ -18,6 +18,9 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [showAIDialog, setShowAIDialog] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
+  const [aiProgress, setAiProgress] = useState('');
+  const [showDebugLogs, setShowDebugLogs] = useState(false);
+  const [debugLogs, setDebugLogs] = useState<string[]>([]);
 
   // Create new design on mount
   useEffect(() => {
@@ -41,21 +44,44 @@ function App() {
     }
   };
 
+  const addDebugLog = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setDebugLogs(prev => [...prev, `[${timestamp}] ${message}`]);
+  };
+
   const handleAISuggest = async () => {
     if (!aiPrompt.trim() || !design) return;
 
     setIsLoading(true);
+    setDebugLogs([]);
+    setAiProgress('Initializing AI request...');
+    addDebugLog('Starting AI layout generation');
+    addDebugLog(`Prompt: "${aiPrompt}"`);
+    addDebugLog(`Canvas size: ${design.page_width}x${design.page_height}pt`);
+    
     try {
+      setAiProgress('Sending request to Ollama (Qwen2.5:7b)...');
+      addDebugLog('Connecting to AI backend...');
+      
+      const startTime = Date.now();
       const result = await aiAPI.suggest(
         aiPrompt,
         design.page_width,
         design.page_height
       );
+      const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+      
+      addDebugLog(`Response received in ${duration}s`);
+      setAiProgress('Processing AI response...');
 
       if (result.success && result.elements) {
+        addDebugLog(`Generated ${result.elements.length} elements`);
+        setAiProgress(`Adding ${result.elements.length} elements to canvas...`);
+        
         // Add AI-generated elements to current page
         const newDesign = { ...design };
-        result.elements.forEach((elem: any) => {
+        result.elements.forEach((elem: any, index: number) => {
+          addDebugLog(`Element ${index + 1}: ${elem.type} at (${elem.x}, ${elem.y})`);
           newDesign.pages[0].elements.push({
             id: `elem_${Date.now()}_${Math.random()}`,
             type: elem.type,
@@ -68,12 +94,26 @@ function App() {
             properties: elem.properties || {},
           });
         });
+        
         setDesign(newDesign);
-        setShowAIDialog(false);
-        setAiPrompt('');
+        setAiProgress('✅ Complete!');
+        addDebugLog('✅ Layout generated successfully!');
+        
+        // Close dialog after 1 second
+        setTimeout(() => {
+          setShowAIDialog(false);
+          setAiPrompt('');
+          setAiProgress('');
+          setShowDebugLogs(false);
+        }, 1000);
+      } else {
+        addDebugLog('❌ No elements generated');
+        setAiProgress('❌ Failed to generate layout');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('AI suggestion failed:', error);
+      addDebugLog(`❌ Error: ${error.message || 'Unknown error'}`);
+      setAiProgress(`❌ Error: ${error.message || 'Request failed'}`);
     } finally {
       setIsLoading(false);
     }
@@ -196,28 +236,67 @@ function App() {
       {/* AI Dialog */}
       {showAIDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg p-6 w-96">
+          <div className="bg-gray-800 rounded-lg p-6 w-[600px] max-h-[80vh] overflow-auto">
             <h2 className="text-xl font-semibold mb-4">AI Layout Suggestion</h2>
             <textarea
               value={aiPrompt}
               onChange={(e) => setAiPrompt(e.target.value)}
               placeholder="Describe what you want... (e.g., 'Create a habit tracker with 7-day grid')"
               className="w-full h-32 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white resize-none"
+              disabled={isLoading}
             />
+            
+            {/* Progress Status */}
+            {isLoading && aiProgress && (
+              <div className="mt-4 p-3 bg-blue-900 bg-opacity-30 border border-blue-600 rounded">
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400"></div>
+                  <span className="text-sm text-blue-300">{aiProgress}</span>
+                </div>
+              </div>
+            )}
+            
+            {/* Debug Logs Toggle */}
+            {isLoading && (
+              <button
+                onClick={() => setShowDebugLogs(!showDebugLogs)}
+                className="mt-2 text-xs text-blue-400 hover:text-blue-300 underline"
+              >
+                {showDebugLogs ? '▼ Hide' : '▶'} Debug Logs
+              </button>
+            )}
+            
+            {/* Debug Logs */}
+            {showDebugLogs && debugLogs.length > 0 && (
+              <div className="mt-2 p-3 bg-gray-900 border border-gray-700 rounded max-h-48 overflow-y-auto">
+                <div className="font-mono text-xs space-y-1">
+                  {debugLogs.map((log, i) => (
+                    <div key={i} className="text-gray-300">{log}</div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
             <div className="flex gap-2 mt-4">
               <button
                 onClick={handleAISuggest}
                 disabled={isLoading || !aiPrompt.trim()}
-                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50"
+                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? 'Generating...' : 'Generate'}
               </button>
               <button
                 onClick={() => {
-                  setShowAIDialog(false);
-                  setAiPrompt('');
+                  if (!isLoading) {
+                    setShowAIDialog(false);
+                    setAiPrompt('');
+                    setAiProgress('');
+                    setShowDebugLogs(false);
+                    setDebugLogs([]);
+                  }
                 }}
-                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded"
+                disabled={isLoading}
+                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
