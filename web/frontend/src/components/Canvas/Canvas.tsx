@@ -58,12 +58,16 @@ const Canvas = () => {
       if (e.target && e.target.data?.id && !isSyncingRef.current) {
         isSyncingRef.current = true; // Set flag to prevent sync loop
         
+        // Calculate width and height, ensuring valid numbers
+        const calculatedWidth = (e.target.width || 0) * (e.target.scaleX || 1);
+        const calculatedHeight = (e.target.height || 0) * (e.target.scaleY || 1);
+        
         const updates: any = {
-          x: e.target.left || 0,
-          y: e.target.top || 0,
-          width: (e.target.width || 0) * (e.target.scaleX || 1),
-          height: (e.target.height || 0) * (e.target.scaleY || 1),
-          rotation: e.target.angle || 0,
+          x: Math.round(e.target.left || 0),
+          y: Math.round(e.target.top || 0),
+          width: isNaN(calculatedWidth) ? 1 : Math.max(1, Math.round(calculatedWidth)),
+          height: isNaN(calculatedHeight) ? 1 : Math.max(1, Math.round(calculatedHeight)),
+          rotation: Math.round(e.target.angle || 0),
         };
 
         // For text objects, update text content and font size
@@ -313,7 +317,19 @@ const Canvas = () => {
           obj = new fabric.Line([element.x, element.y, element.x + element.width, element.y + element.height], {
             stroke: element.properties.stroke || '#000000',
             strokeWidth: element.properties.strokeWidth || 1,
+            lockScalingY: true,
+            lockRotation: false,
           });
+          // Only show left and right handles
+          if (obj) {
+            (obj as fabric.Line).setControlsVisibility({
+              mt: false, mb: false,
+              ml: true, mr: true,
+              tl: false, tr: false,
+              bl: false, br: false,
+              mtr: true,
+            });
+          }
           break;
       }
 
@@ -439,6 +455,21 @@ const Canvas = () => {
     const line = new fabric.Line([100, 100, 200, 100], {
       stroke: '#000000',
       strokeWidth: 2,
+      lockScalingY: true, // Prevent vertical scaling
+      lockRotation: false,
+    });
+
+    // Only show left and right handles for horizontal resizing
+    line.setControlsVisibility({
+      mt: false, // middle top
+      mb: false, // middle bottom
+      ml: true,  // middle left - KEEP
+      mr: true,  // middle right - KEEP
+      tl: false, // top left corner
+      tr: false, // top right corner
+      bl: false, // bottom left corner
+      br: false, // bottom right corner
+      mtr: true, // rotation handle - KEEP
     });
 
     const id = `line_${Date.now()}`;
