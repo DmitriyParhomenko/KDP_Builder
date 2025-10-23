@@ -134,30 +134,86 @@ const Canvas = () => {
       case 'select':
         canvas.isDrawingMode = false;
         canvas.selection = true;
+        canvas.defaultCursor = 'default';
+        // Disable panning
+        canvas.forEachObject((obj) => {
+          obj.selectable = true;
+          obj.evented = true;
+        });
+        break;
+      case 'pan':
+        canvas.isDrawingMode = false;
+        canvas.selection = false;
+        canvas.defaultCursor = 'grab';
+        // Make all objects non-selectable for panning
+        canvas.forEachObject((obj) => {
+          obj.selectable = false;
+          obj.evented = false;
+        });
+        // Enable panning with mouse drag
+        let isPanning = false;
+        let lastPosX = 0;
+        let lastPosY = 0;
+        
+        canvas.on('mouse:down', function(opt) {
+          if (activeTool === 'pan') {
+            isPanning = true;
+            canvas.defaultCursor = 'grabbing';
+            const evt = opt.e as MouseEvent;
+            lastPosX = evt.clientX;
+            lastPosY = evt.clientY;
+          }
+        });
+        
+        canvas.on('mouse:move', function(opt) {
+          if (isPanning && activeTool === 'pan') {
+            const evt = opt.e as MouseEvent;
+            const vpt = canvas.viewportTransform;
+            if (vpt) {
+              vpt[4] += evt.clientX - lastPosX;
+              vpt[5] += evt.clientY - lastPosY;
+              canvas.requestRenderAll();
+              lastPosX = evt.clientX;
+              lastPosY = evt.clientY;
+            }
+          }
+        });
+        
+        canvas.on('mouse:up', function() {
+          if (activeTool === 'pan') {
+            isPanning = false;
+            canvas.defaultCursor = 'grab';
+          }
+        });
         break;
       case 'text':
         canvas.isDrawingMode = false;
         canvas.selection = false;
+        canvas.defaultCursor = 'default';
         addTextElement(canvas);
         break;
       case 'rectangle':
         canvas.isDrawingMode = false;
         canvas.selection = false;
+        canvas.defaultCursor = 'default';
         addRectangleElement(canvas);
         break;
       case 'circle':
         canvas.isDrawingMode = false;
         canvas.selection = false;
+        canvas.defaultCursor = 'default';
         addCircleElement(canvas);
         break;
       case 'line':
         canvas.isDrawingMode = false;
         canvas.selection = false;
+        canvas.defaultCursor = 'default';
         addLineElement(canvas);
         break;
       default:
         canvas.isDrawingMode = false;
         canvas.selection = true;
+        canvas.defaultCursor = 'default';
     }
   }, [activeTool]);
 
