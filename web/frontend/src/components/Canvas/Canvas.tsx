@@ -43,6 +43,16 @@ const Canvas = () => {
           selectElement(obj.data.id);
         }
       }
+      
+      // Hide side handles for group selections
+      if (e.target && e.target.type === 'activeSelection') {
+        e.target.setControlsVisibility({
+          mt: false, // top middle
+          mb: false, // bottom middle
+          ml: false, // left middle
+          mr: false, // right middle
+        });
+      }
     });
 
     canvas.on('selection:updated', (e) => {
@@ -52,30 +62,52 @@ const Canvas = () => {
           selectElement(obj.data.id);
         }
       }
+      
+      // Hide side handles for group selections
+      if (e.target && e.target.type === 'activeSelection') {
+        e.target.setControlsVisibility({
+          mt: false,
+          mb: false,
+          ml: false,
+          mr: false,
+        });
+      }
     });
 
     // Handle object modification (move, resize, rotate, text editing complete)
     canvas.on('object:modified', (e) => {
       if (!e.target || isSyncingRef.current) return;
       
-      // Handle group selection (multiple objects moved together)
+      // Handle group selection (multiple objects moved/resized together)
       if (e.target.type === 'activeSelection') {
         isSyncingRef.current = true;
         const group = e.target as fabric.ActiveSelection;
         const objects = group.getObjects();
+        
+        // Get group transform
+        const groupScaleX = group.scaleX || 1;
+        const groupScaleY = group.scaleY || 1;
+        const groupLeft = group.left || 0;
+        const groupTop = group.top || 0;
         
         objects.forEach((obj: any) => {
           if (obj.data?.id) {
             // Track as modified
             recentlyModifiedRef.current.add(obj.data.id);
             
-            // Update position based on group transform
-            const objLeft = obj.left + group.left + group.width / 2;
-            const objTop = obj.top + group.top + group.height / 2;
+            // Calculate new position with group transform
+            const objLeft = (obj.left * groupScaleX) + groupLeft + (group.width || 0) / 2;
+            const objTop = (obj.top * groupScaleY) + groupTop + (group.height || 0) / 2;
+            
+            // Calculate new size with group scale
+            const objWidth = (obj.width || 0) * (obj.scaleX || 1) * groupScaleX;
+            const objHeight = (obj.height || 0) * (obj.scaleY || 1) * groupScaleY;
             
             updateElement(obj.data.id, {
               x: Math.round(objLeft),
               y: Math.round(objTop),
+              width: Math.max(1, Math.round(objWidth)),
+              height: Math.max(1, Math.round(objHeight)),
             });
           }
         });
