@@ -12,7 +12,7 @@ const Canvas = () => {
   const isSyncingRef = useRef(false); // Prevent infinite loops
   const recentlyModifiedRef = useRef<Set<string>>(new Set()); // Track recently modified objects
   
-  const { design, currentPage, activeTool, addElement, updateElement, selectElement, clearSelection } = useDesignStore();
+  const { design, currentPage, activeTool, addElement, updateElement, selectElement } = useDesignStore();
 
   useEffect(() => {
     if (!canvasRef.current || !design) return;
@@ -42,15 +42,22 @@ const Canvas = () => {
         const group = e.target as fabric.ActiveSelection;
         const objects = group.getObjects();
         
-        // Clear selection first
-        clearSelection();
-        
-        // Add all objects to selection
+        // Collect all IDs first
+        const selectedIds: string[] = [];
         objects.forEach((obj: any) => {
           if (obj.data?.id) {
-            selectElement(obj.data.id, true); // multi=true to add to selection
+            selectedIds.push(obj.data.id);
           }
         });
+        
+        // Select first element (clears previous)
+        if (selectedIds.length > 0) {
+          selectElement(selectedIds[0], false);
+          // Add remaining elements
+          for (let i = 1; i < selectedIds.length; i++) {
+            selectElement(selectedIds[i], true);
+          }
+        }
         
         // Hide side handles for group selections
         e.target.setControlsVisibility({
@@ -75,15 +82,22 @@ const Canvas = () => {
         const group = e.target as fabric.ActiveSelection;
         const objects = group.getObjects();
         
-        // Clear selection first
-        clearSelection();
-        
-        // Add all objects to selection
+        // Collect all IDs first
+        const selectedIds: string[] = [];
         objects.forEach((obj: any) => {
           if (obj.data?.id) {
-            selectElement(obj.data.id, true); // multi=true to add to selection
+            selectedIds.push(obj.data.id);
           }
         });
+        
+        // Select first element (clears previous)
+        if (selectedIds.length > 0) {
+          selectElement(selectedIds[0], false);
+          // Add remaining elements
+          for (let i = 1; i < selectedIds.length; i++) {
+            selectElement(selectedIds[i], true);
+          }
+        }
         
         // Hide side handles for group selections
         e.target.setControlsVisibility({
