@@ -2,11 +2,14 @@
  * Layers Component - Layer management panel
  */
 
-import { Eye, EyeOff, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { Eye, EyeOff, Trash2, GripVertical } from 'lucide-react';
 import { useDesignStore } from '../../store/designStore';
 
 const Layers = () => {
-  const { design, currentPage, selectedElements, selectElement, deleteElement } = useDesignStore();
+  const { design, currentPage, selectedElements, selectElement, deleteElement, reorderElement } = useDesignStore();
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   if (!design) return null;
 
@@ -45,12 +48,40 @@ const Layers = () => {
             return (
               <div
                 key={element.id}
+                draggable
+                onDragStart={(e) => {
+                  setDraggedId(element.id);
+                  e.dataTransfer.effectAllowed = 'move';
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  setDragOverId(element.id);
+                }}
+                onDragLeave={() => {
+                  setDragOverId(null);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (draggedId && draggedId !== element.id) {
+                    reorderElement(draggedId, element.z_index);
+                  }
+                  setDraggedId(null);
+                  setDragOverId(null);
+                }}
+                onDragEnd={() => {
+                  setDraggedId(null);
+                  setDragOverId(null);
+                }}
                 onClick={() => selectElement(element.id)}
                 className={`
-                  flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer
+                  flex items-center gap-2 px-2 py-1.5 rounded cursor-move transition-all
                   ${isSelected ? 'bg-blue-600' : 'hover:bg-gray-700'}
+                  ${draggedId === element.id ? 'opacity-50' : ''}
+                  ${dragOverId === element.id ? 'border-t-2 border-blue-400' : ''}
                 `}
               >
+                <GripVertical className="w-4 h-4 text-gray-500" />
                 <Eye className="w-4 h-4 text-gray-400" />
                 
                 <span className="flex-1 text-sm truncate">

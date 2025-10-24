@@ -26,6 +26,7 @@ interface DesignState {
   addElement: (element: DesignElement) => void;
   updateElement: (id: string, updates: Partial<DesignElement>) => void;
   deleteElement: (id: string) => void;
+  reorderElement: (id: string, newZIndex: number) => void;
   selectElement: (id: string, multi?: boolean) => void;
   clearSelection: () => void;
   setActiveTool: (tool: Tool) => void;
@@ -95,6 +96,39 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     
     set({ design: newDesign, selectedElements: [] });
     get().saveToHistory();
+  },
+
+  reorderElement: (id, newZIndex) => {
+    const { design, currentPage } = get();
+    if (!design) return;
+
+    const newDesign = { ...design };
+    const elements = newDesign.pages[currentPage].elements;
+    const element = elements.find(e => e.id === id);
+    
+    if (element) {
+      const oldZIndex = element.z_index;
+      
+      // Update z_index for all affected elements
+      elements.forEach(el => {
+        if (el.id === id) {
+          el.z_index = newZIndex;
+        } else if (oldZIndex < newZIndex) {
+          // Moving up: shift elements down
+          if (el.z_index > oldZIndex && el.z_index <= newZIndex) {
+            el.z_index--;
+          }
+        } else {
+          // Moving down: shift elements up
+          if (el.z_index >= newZIndex && el.z_index < oldZIndex) {
+            el.z_index++;
+          }
+        }
+      });
+      
+      set({ design: newDesign });
+      get().saveToHistory();
+    }
   },
 
   selectElement: (id, multi = false) => {
