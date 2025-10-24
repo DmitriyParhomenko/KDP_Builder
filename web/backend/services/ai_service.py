@@ -73,12 +73,12 @@ EXAMPLE OUTPUT:
     "type": "text",
     "x": 216,
     "y": 580,
-    "width": 300,
+    "width": 200,
     "height": 50,
     "properties": {{
       "text": "HABIT TRACKER",
       "fontSize": 48,
-      "fontFamily": "Helvetica-Bold",
+      "fontFamily": "Helvetica",
       "color": "#2C2C2C",
       "align": "center"
     }}
@@ -87,8 +87,8 @@ EXAMPLE OUTPUT:
     "type": "rectangle",
     "x": 50,
     "y": 400,
-    "width": 15,
-    "height": 15,
+    "width": 18,
+    "height": 18,
     "properties": {{
       "fill": "none",
       "stroke": "#CCCCCC",
@@ -97,13 +97,42 @@ EXAMPLE OUTPUT:
   }}
 ]
 
-IMPORTANT:
-- Use professional measurements from examples
-- Y-axis: 0 at bottom, {page_height} at top
-- Keep margins: 36pt minimum from edges
-- Use large fonts for headers (48pt)
-- Use light colors for lines (#CCCCCC)
-- Return ONLY valid JSON array, no explanations
+CRITICAL RULES:
+1. TEXT WIDTH: Calculate based on content length
+   - Short text (1-5 chars): 30-50pt
+   - Medium text (6-15 chars): 60-120pt
+   - Long text (16+ chars): 150-300pt
+   - Headers: 200-350pt
+
+2. FONT FAMILY: Use ONLY "Helvetica" (not "Helvetica-Bold")
+
+3. ALIGNMENT: When creating rows of elements:
+   - Align labels directly above/below their corresponding elements
+   - Use same X position for aligned elements
+   - Space evenly across available width
+
+4. ELEMENT COUNTING: If request says "7 checkboxes", generate EXACTLY 7
+   - Count carefully before generating
+   - Verify all requested elements are included
+
+5. SPACING: Calculate proper spacing
+   - Total width available: {page_width - 72}pt (with 36pt margins)
+   - For N elements: spacing = available_width / (N + 1)
+   - Element X = margin + (spacing * element_number)
+
+6. COORDINATES:
+   - Y-axis: 0 at bottom, {page_height} at top
+   - Keep margins: 36pt minimum from all edges
+   - Headers at top: y = {page_height - 80}
+   - Content area: y = 100 to {page_height - 120}
+
+7. SIZES:
+   - Checkboxes: 18x18pt (not 15x15)
+   - Headers: 48pt font
+   - Labels: 14-16pt font
+   - Minimum clickable area: 18x18pt
+
+8. RETURN FORMAT: ONLY valid JSON array, no explanations, no markdown
 
 GENERATE LAYOUT:"""
         
@@ -118,6 +147,9 @@ GENERATE LAYOUT:"""
             layout_json = self._extract_json(response['response'])
             
             if layout_json:
+                # Validate and fix common issues
+                layout_json = self._validate_and_fix_layout(layout_json, page_width, page_height)
+                
                 return {
                     "success": True,
                     "elements": layout_json,
@@ -230,6 +262,57 @@ Be concise and descriptive."""
                 context_parts.append(f"  Metadata: {json.dumps(pattern['metadata'])}")
         
         return "\n".join(context_parts)
+    
+    def _validate_and_fix_layout(
+        self, 
+        elements: List[Dict[str, Any]], 
+        page_width: float, 
+        page_height: float
+    ) -> List[Dict[str, Any]]:
+        """
+        Validate and fix common issues in AI-generated layouts.
+        
+        Args:
+            elements: List of generated elements
+            page_width: Page width in points
+            page_height: Page height in points
+            
+        Returns:
+            Fixed list of elements
+        """
+        fixed_elements = []
+        
+        for elem in elements:
+            # Fix font family
+            if elem.get('properties', {}).get('fontFamily') == 'Helvetica-Bold':
+                elem['properties']['fontFamily'] = 'Helvetica'
+            
+            # Fix text width for short labels
+            if elem.get('type') == 'text':
+                text = elem.get('properties', {}).get('text', '')
+                current_width = elem.get('width', 300)
+                
+                # Calculate reasonable width based on text length
+                if len(text) <= 5 and current_width > 100:
+                    elem['width'] = 60
+                elif len(text) <= 15 and current_width > 200:
+                    elem['width'] = 120
+            
+            # Ensure minimum sizes for clickable elements
+            if elem.get('type') == 'rectangle':
+                if elem.get('width', 0) < 15:
+                    elem['width'] = 18
+                if elem.get('height', 0) < 15:
+                    elem['height'] = 18
+            
+            # Clamp positions to page bounds with margins
+            elem['x'] = max(36, min(elem.get('x', 0), page_width - 36))
+            elem['y'] = max(36, min(elem.get('y', 0), page_height - 36))
+            
+            fixed_elements.append(elem)
+        
+        print(f"✅ Validated {len(fixed_elements)} elements")
+        return fixed_elements
     
     def _extract_json(self, text: str) -> Optional[List[Dict[str, Any]]]:
         """Extract JSON array from AI response"""
