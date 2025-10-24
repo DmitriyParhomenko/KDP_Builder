@@ -10,6 +10,7 @@ const Canvas = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricRef = useRef<fabric.Canvas | null>(null);
   const isSyncingRef = useRef(false); // Prevent infinite loops
+  const recentlyModifiedRef = useRef<Set<string>>(new Set()); // Track recently modified objects
   
   const { design, currentPage, activeTool, addElement, updateElement, selectElement } = useDesignStore();
 
@@ -97,12 +98,16 @@ const Canvas = () => {
           canvas.renderAll();
         }
 
+        // Track this object as recently modified
+        recentlyModifiedRef.current.add(e.target.data.id);
+        
         updateElement(e.target.data.id, updates);
         
-        // Reset flag after a longer delay to prevent race conditions
+        // Reset flag and clear modified tracking after delay
         setTimeout(() => {
           isSyncingRef.current = false;
-        }, 200);
+          recentlyModifiedRef.current.delete(e.target.data.id);
+        }, 500);
       }
     });
 
@@ -226,6 +231,11 @@ const Canvas = () => {
 
     // Update each canvas object from store
     currentPageElements.forEach(element => {
+      // Skip recently modified objects to prevent overwriting user changes
+      if (recentlyModifiedRef.current.has(element.id)) {
+        return;
+      }
+      
       const canvasObj = canvas.getObjects().find((obj: any) => obj.data?.id === element.id);
       
       if (canvasObj) {
