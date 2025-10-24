@@ -321,6 +321,15 @@ const Canvas = () => {
       }
     });
 
+    // Update stacking order based on z_index
+    const sortedElements = [...currentPageElements].sort((a, b) => a.z_index - b.z_index);
+    sortedElements.forEach((element, index) => {
+      const canvasObj = canvas.getObjects().find((obj: any) => obj.data?.id === element.id);
+      if (canvasObj) {
+        canvas.moveTo(canvasObj, index);
+      }
+    });
+
     canvas.renderAll();
   }, [design, currentPage]);
 
@@ -369,7 +378,10 @@ const Canvas = () => {
     const page = design.pages[currentPage];
     if (!page) return;
 
-    page.elements.forEach((element) => {
+    // Sort elements by z_index (lowest first) to ensure proper stacking
+    const sortedElements = [...page.elements].sort((a, b) => a.z_index - b.z_index);
+
+    sortedElements.forEach((element) => {
       let obj: fabric.Object | null = null;
 
       switch (element.type) {
