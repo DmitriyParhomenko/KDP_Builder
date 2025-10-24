@@ -56,7 +56,44 @@ const Canvas = () => {
 
     // Handle object modification (move, resize, rotate, text editing complete)
     canvas.on('object:modified', (e) => {
-      if (e.target && e.target.data?.id && !isSyncingRef.current) {
+      if (!e.target || isSyncingRef.current) return;
+      
+      // Handle group selection (multiple objects moved together)
+      if (e.target.type === 'activeSelection') {
+        isSyncingRef.current = true;
+        const group = e.target as fabric.ActiveSelection;
+        const objects = group.getObjects();
+        
+        objects.forEach((obj: any) => {
+          if (obj.data?.id) {
+            // Track as modified
+            recentlyModifiedRef.current.add(obj.data.id);
+            
+            // Update position based on group transform
+            const objLeft = obj.left + group.left + group.width / 2;
+            const objTop = obj.top + group.top + group.height / 2;
+            
+            updateElement(obj.data.id, {
+              x: Math.round(objLeft),
+              y: Math.round(objTop),
+            });
+          }
+        });
+        
+        // Reset flag and clear tracking after delay
+        setTimeout(() => {
+          isSyncingRef.current = false;
+          objects.forEach((obj: any) => {
+            if (obj.data?.id) {
+              recentlyModifiedRef.current.delete(obj.data.id);
+            }
+          });
+        }, 500);
+        return;
+      }
+      
+      // Handle single object modification
+      if (e.target && e.target.data?.id) {
         isSyncingRef.current = true; // Set flag to prevent sync loop
         
         // Calculate width and height, ensuring valid numbers
