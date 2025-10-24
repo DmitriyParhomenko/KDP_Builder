@@ -99,10 +99,10 @@ const Canvas = () => {
 
         updateElement(e.target.data.id, updates);
         
-        // Reset flag after a short delay
+        // Reset flag after a longer delay to prevent race conditions
         setTimeout(() => {
           isSyncingRef.current = false;
-        }, 50);
+        }, 200);
       }
     });
 
