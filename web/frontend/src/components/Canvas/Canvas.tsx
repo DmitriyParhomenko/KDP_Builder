@@ -37,35 +37,42 @@ const Canvas = () => {
 
     // Handle object selection
     canvas.on('selection:created', (e) => {
-      // Handle group selection - select all elements
-      if (e.target && e.target.type === 'activeSelection') {
-        const group = e.target as fabric.ActiveSelection;
-        const objects = group.getObjects();
+      console.log('🔍 Selection created:', e.target?.type, 'selected count:', e.selected?.length);
+      
+      // Handle group selection (multiple objects selected)
+      if (e.selected && e.selected.length > 1) {
+        console.log('🔵 Group selection detected');
         
         // Collect all IDs first
         const selectedIds: string[] = [];
-        objects.forEach((obj: any) => {
+        e.selected.forEach((obj: any) => {
           if (obj.data?.id) {
             selectedIds.push(obj.data.id);
           }
         });
         
+        console.log('  Selected IDs:', selectedIds);
+        
         // Select first element (clears previous)
         if (selectedIds.length > 0) {
+          console.log('  Selecting first:', selectedIds[0]);
           selectElement(selectedIds[0], false);
           // Add remaining elements
           for (let i = 1; i < selectedIds.length; i++) {
+            console.log('  Adding to selection:', selectedIds[i]);
             selectElement(selectedIds[i], true);
           }
         }
         
         // Hide side handles for group selections
-        e.target.setControlsVisibility({
-          mt: false, // top middle
-          mb: false, // bottom middle
-          ml: false, // left middle
-          mr: false, // right middle
-        });
+        if (e.target) {
+          e.target.setControlsVisibility({
+            mt: false, // top middle
+            mb: false, // bottom middle
+            ml: false, // left middle
+            mr: false, // right middle
+          });
+        }
       } 
       // Handle single selection
       else if (e.selected && e.selected[0]) {
@@ -77,14 +84,11 @@ const Canvas = () => {
     });
 
     canvas.on('selection:updated', (e) => {
-      // Handle group selection - select all elements
-      if (e.target && e.target.type === 'activeSelection') {
-        const group = e.target as fabric.ActiveSelection;
-        const objects = group.getObjects();
-        
+      // Handle group selection (multiple objects selected)
+      if (e.selected && e.selected.length > 1) {
         // Collect all IDs first
         const selectedIds: string[] = [];
-        objects.forEach((obj: any) => {
+        e.selected.forEach((obj: any) => {
           if (obj.data?.id) {
             selectedIds.push(obj.data.id);
           }
@@ -100,12 +104,14 @@ const Canvas = () => {
         }
         
         // Hide side handles for group selections
-        e.target.setControlsVisibility({
-          mt: false,
-          mb: false,
-          ml: false,
-          mr: false,
-        });
+        if (e.target) {
+          e.target.setControlsVisibility({
+            mt: false,
+            mb: false,
+            ml: false,
+            mr: false,
+          });
+        }
       }
       // Handle single selection
       else if (e.selected && e.selected[0]) {
