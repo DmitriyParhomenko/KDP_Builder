@@ -37,40 +37,62 @@ const Canvas = () => {
 
     // Handle object selection
     canvas.on('selection:created', (e) => {
-      if (e.selected && e.selected[0]) {
-        const obj = e.selected[0];
-        if (obj.data?.id) {
-          selectElement(obj.data.id);
-        }
-      }
-      
-      // Hide side handles for group selections
+      // Handle group selection - select all elements
       if (e.target && e.target.type === 'activeSelection') {
+        const group = e.target as fabric.ActiveSelection;
+        const objects = group.getObjects();
+        
+        // Select all objects in the group
+        objects.forEach((obj: any, index: number) => {
+          if (obj.data?.id) {
+            selectElement(obj.data.id, index > 0); // multi=true for 2nd+ elements
+          }
+        });
+        
+        // Hide side handles for group selections
         e.target.setControlsVisibility({
           mt: false, // top middle
           mb: false, // bottom middle
           ml: false, // left middle
           mr: false, // right middle
         });
-      }
-    });
-
-    canvas.on('selection:updated', (e) => {
-      if (e.selected && e.selected[0]) {
+      } 
+      // Handle single selection
+      else if (e.selected && e.selected[0]) {
         const obj = e.selected[0];
         if (obj.data?.id) {
           selectElement(obj.data.id);
         }
       }
-      
-      // Hide side handles for group selections
+    });
+
+    canvas.on('selection:updated', (e) => {
+      // Handle group selection - select all elements
       if (e.target && e.target.type === 'activeSelection') {
+        const group = e.target as fabric.ActiveSelection;
+        const objects = group.getObjects();
+        
+        // Select all objects in the group
+        objects.forEach((obj: any, index: number) => {
+          if (obj.data?.id) {
+            selectElement(obj.data.id, index > 0); // multi=true for 2nd+ elements
+          }
+        });
+        
+        // Hide side handles for group selections
         e.target.setControlsVisibility({
           mt: false,
           mb: false,
           ml: false,
           mr: false,
         });
+      }
+      // Handle single selection
+      else if (e.selected && e.selected[0]) {
+        const obj = e.selected[0];
+        if (obj.data?.id) {
+          selectElement(obj.data.id);
+        }
       }
     });
 
