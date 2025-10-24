@@ -12,7 +12,7 @@ const Canvas = () => {
   const isSyncingRef = useRef(false); // Prevent infinite loops
   const recentlyModifiedRef = useRef<Set<string>>(new Set()); // Track recently modified objects
   
-  const { design, currentPage, activeTool, addElement, updateElement, selectElement } = useDesignStore();
+  const { design, currentPage, activeTool, addElement, updateElement, selectElement, clearSelection } = useDesignStore();
 
   useEffect(() => {
     if (!canvasRef.current || !design) return;
@@ -42,10 +42,13 @@ const Canvas = () => {
         const group = e.target as fabric.ActiveSelection;
         const objects = group.getObjects();
         
-        // Select all objects in the group
-        objects.forEach((obj: any, index: number) => {
+        // Clear selection first
+        clearSelection();
+        
+        // Add all objects to selection
+        objects.forEach((obj: any) => {
           if (obj.data?.id) {
-            selectElement(obj.data.id, index > 0); // multi=true for 2nd+ elements
+            selectElement(obj.data.id, true); // multi=true to add to selection
           }
         });
         
@@ -72,10 +75,13 @@ const Canvas = () => {
         const group = e.target as fabric.ActiveSelection;
         const objects = group.getObjects();
         
-        // Select all objects in the group
-        objects.forEach((obj: any, index: number) => {
+        // Clear selection first
+        clearSelection();
+        
+        // Add all objects to selection
+        objects.forEach((obj: any) => {
           if (obj.data?.id) {
-            selectElement(obj.data.id, index > 0); // multi=true for 2nd+ elements
+            selectElement(obj.data.id, true); // multi=true to add to selection
           }
         });
         
