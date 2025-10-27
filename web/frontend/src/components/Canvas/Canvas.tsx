@@ -24,6 +24,64 @@ const Canvas = () => {
       backgroundColor: '#ffffff',
     });
 
+    // Prevent moving/scaling outside margins (red border)
+    const margin = 36;
+    const pageW = design.page_width;
+    const pageH = design.page_height;
+
+    // Clamp helper for single object
+    const clampObjectWithinMargins = (o: any) => {
+      const w = (o.width || 0) * (o.scaleX || 1);
+      const h = (o.height || 0) * (o.scaleY || 1);
+      const minLeft = margin;
+      const minTop = margin;
+      const maxLeft = pageW - margin - w;
+      const maxTop = pageH - margin - h;
+      if (typeof o.left === 'number') o.left = Math.min(Math.max(o.left, minLeft), Math.max(minLeft, maxLeft));
+      if (typeof o.top === 'number') o.top = Math.min(Math.max(o.top, minTop), Math.max(minTop, maxTop));
+    };
+
+    // Clamp helper for active selection (use its bounding box)
+    const clampGroupWithinMargins = (g: fabric.ActiveSelection) => {
+      const gW = (g.getScaledWidth && g.getScaledWidth()) || ((g.width || 0) * (g.scaleX || 1));
+      const gH = (g.getScaledHeight && g.getScaledHeight()) || ((g.height || 0) * (g.scaleY || 1));
+      const minLeft = margin;
+      const minTop = margin;
+      const maxLeft = pageW - margin - gW;
+      const maxTop = pageH - margin - gH;
+      if (typeof g.left === 'number') g.left = Math.min(Math.max(g.left, minLeft), Math.max(minLeft, maxLeft));
+      if (typeof g.top === 'number') g.top = Math.min(Math.max(g.top, minTop), Math.max(minTop, maxTop));
+    };
+
+    canvas.on('object:moving', (e: any) => {
+      if (!e.target) return;
+      if (e.target.type === 'activeSelection') {
+        clampGroupWithinMargins(e.target as fabric.ActiveSelection);
+      } else {
+        clampObjectWithinMargins(e.target);
+      }
+    });
+
+    canvas.on('object:scaling', (e: any) => {
+      if (!e.target) return;
+      if (e.target.type === 'activeSelection') {
+        clampGroupWithinMargins(e.target as fabric.ActiveSelection);
+        return;
+      }
+      const o: any = e.target;
+      // Ensure scale does not push outside margins
+      const baseW = o.width || 0;
+      const baseH = o.height || 0;
+      const left = o.left || 0;
+      const top = o.top || 0;
+      const maxScaleX = (pageW - margin - left) / Math.max(1, baseW);
+      const maxScaleY = (pageH - margin - top) / Math.max(1, baseH);
+      if (o.scaleX) o.scaleX = Math.min(o.scaleX, Math.max(0.1, maxScaleX));
+      if (o.scaleY) o.scaleY = Math.min(o.scaleY, Math.max(0.1, maxScaleY));
+      // After scaling, clamp position too
+      clampObjectWithinMargins(o);
+    });
+
     fabricRef.current = canvas;
 
     // Add grid
@@ -35,8 +93,94 @@ const Canvas = () => {
     // Load existing elements
     loadElements(canvas);
 
+    // Post-pass: shrink text to fit margins, clamp, and prevent overlaps
+    const fitAndClampAll = () => {
+      const objs = canvas.getObjects().filter((o) => o.evented !== false && o.selectable !== false);
+      if (!objs.length) return;
+      const marginPx = margin;
+      const rightLimit = pageW - marginPx;
+      const bottomLimit = pageH - marginPx;
+
+      const getW = (o: any) => (o.getScaledWidth ? o.getScaledWidth() : (o.width || 0) * (o.scaleX || 1)) || 0;
+      const getH = (o: any) => (o.getScaledHeight ? o.getScaledHeight() : (o.height || 0) * (o.scaleY || 1)) || 0;
+
+      const changed: any[] = [];
+
+      // 1) Shrink text that exceeds right margin
+      objs.forEach((o: any) => {
+        if (o.type === 'i-text' || o.type === 'text') {
+          let left = o.left || 0;
+          let top = o.top || 0;
+          let w = getW(o);
+          const h = getH(o);
+          if (left < marginPx) left = marginPx;
+          const allowedW = Math.max(20, rightLimit - left);
+          if (w > allowedW) {
+            const fs = o.fontSize || 14;
+            const scale = Math.max(0.5, allowedW / Math.max(1, w));
+            const newFs = Math.max(8, Math.round(fs * scale));
+            o.set({ fontSize: newFs, scaleX: 1, scaleY: 1, left, top });
+            w = getW(o);
+            changed.push(o);
+          } else if (o.left !== left) {
+            o.set({ left });
+            changed.push(o);
+          }
+          // Clamp vertical
+          if (top < marginPx || top + h > bottomLimit) {
+            o.set({ top: Math.min(Math.max(top, marginPx), bottomLimit - h) });
+            changed.push(o);
+          }
+          o.setCoords();
+        }
+      });
+
+      // 2) Clamp all objects to margins
+      objs.forEach((o: any) => {
+        const w = getW(o);
+        const h = getH(o);
+        const newLeft = Math.min(Math.max(o.left || 0, marginPx), rightLimit - w);
+        const newTop = Math.min(Math.max(o.top || 0, marginPx), bottomLimit - h);
+        if (newLeft !== o.left || newTop !== o.top) {
+          o.set({ left: newLeft, top: newTop });
+          o.setCoords();
+          changed.push(o);
+        }
+      });
+
+      // 3) Resolve vertical overlaps (simple stack push-down)
+      const items = objs
+        .map((o: any) => ({ o, left: o.left || 0, top: o.top || 0, w: getW(o), h: getH(o) }))
+        .sort((a, b) => a.top - b.top || a.left - b.left);
+      const gap = 6;
+      for (let i = 0; i < items.length; i++) {
+        for (let j = 0; j < i; j++) {
+          const A = items[i];
+          const B = items[j];
+          const overlap = !(A.left + A.w <= B.left || B.left + B.w <= A.left || A.top + A.h <= B.top || B.top + B.h <= A.top);
+          if (overlap) {
+            const newTop = Math.min(B.top + B.h + gap, bottomLimit - A.h);
+            if (newTop !== A.top) {
+              A.top = newTop;
+              A.o.set({ top: newTop });
+              A.o.setCoords();
+              changed.push(A.o);
+            }
+          }
+        }
+      }
+
+      if (changed.length) {
+        // Only render visually; do NOT update store here to avoid update depth loops
+        canvas.requestRenderAll();
+      }
+    };
+
+    // Run post-pass once after load
+    fitAndClampAll();
+
     // Handle object selection
-    canvas.on('selection:created', (e) => {
+    canvas.on('selection:created', (e: any) => {
       console.log('🔍 Selection created:', e.target?.type, 'selected count:', e.selected?.length);
       
       // Handle group selection (multiple objects selected)
@@ -83,7 +227,7 @@ const Canvas = () => {
       }
     });
 
-    canvas.on('selection:updated', (e) => {
+    canvas.on('selection:updated', (e: any) => {
       // Handle group selection (multiple objects selected)
       if (e.selected && e.selected.length > 1) {
         // Collect all IDs first
@@ -123,7 +267,7 @@ const Canvas = () => {
     });
 
     // Handle object modification (move, resize, rotate, text editing complete)
-    canvas.on('object:modified', (e) => {
+    canvas.on('object:modified', (e: any) => {
       if (!e.target || isSyncingRef.current) return;
       
       // Handle group selection (multiple objects moved/resized together)
@@ -229,7 +373,7 @@ const Canvas = () => {
     });
 
     // Handle when text editing ends (not during typing)
-    canvas.on('text:editing:exited', (e) => {
+    canvas.on('text:editing:exited', (e: any) => {
       if (e.target && e.target.data?.id) {
         const textObj = e.target as fabric.IText;
         updateElement(e.target.data.id, {
@@ -277,7 +421,7 @@ const Canvas = () => {
         let lastPosX = 0;
         let lastPosY = 0;
         
-        canvas.on('mouse:down', function(opt) {
+        canvas.on('mouse:down', function(opt: any) {
           if (activeTool === 'pan') {
             isPanning = true;
             canvas.defaultCursor = 'grabbing';
@@ -287,7 +431,7 @@ const Canvas = () => {
           }
         });
         
-        canvas.on('mouse:move', function(opt) {
+        canvas.on('mouse:move', function(opt: any) {
           if (isPanning && activeTool === 'pan') {
             const evt = opt.e as MouseEvent;
             const vpt = canvas.viewportTransform;
@@ -466,14 +610,20 @@ const Canvas = () => {
 
       switch (element.type) {
         case 'text':
-          obj = new fabric.IText(element.properties.text || 'Text', {
-            left: element.x,
-            top: element.y,
-            fontSize: element.properties.fontSize || 12,
-            fontFamily: element.properties.fontFamily || 'Helvetica',
-            fill: element.properties.color || '#000000',
-            lockScalingFlip: true,
-          });
+          {
+            const align = ['left','center','right','justify','start','end'].includes(
+              (element.properties.align || '').toLowerCase()
+            ) ? (element.properties.align || 'left') : 'left';
+            obj = new fabric.IText(element.properties.text || 'Text', {
+              left: element.x,
+              top: element.y,
+              fontSize: element.properties.fontSize || 12,
+              fontFamily: element.properties.fontFamily || 'Helvetica',
+              fill: element.properties.color || '#000000',
+              lockScalingFlip: true,
+              textAlign: align as any,
+            });
+          }
           // Disable side handles, only allow corner resizing
           if (obj) {
             (obj as fabric.IText).setControlsVisibility({

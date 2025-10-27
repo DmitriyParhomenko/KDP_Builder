@@ -291,6 +291,19 @@ Be concise and descriptive."""
             if elem.get('type') == 'text':
                 text = elem.get('properties', {}).get('text', '')
                 current_width = elem.get('width', 300)
+                # Sanitize text alignment and baseline to valid values
+                props = elem.setdefault('properties', {})
+                align = str(props.get('align', 'left')).lower()
+                if align not in {'left','center','right','justify','start','end'}:
+                    props['align'] = 'left'
+                baseline = str(props.get('textBaseline', 'alphabetic')).lower()
+                # valid canvas baselines: top, hanging, middle, alphabetic, ideographic, bottom
+                if baseline == 'alphabetical':
+                    baseline = 'alphabetic'
+                if baseline not in {'top','hanging','middle','alphabetic','ideographic','bottom'}:
+                    baseline = 'alphabetic'
+                # store sanitized baseline if front-end ever uses it
+                props['textBaseline'] = baseline
                 
                 # Calculate reasonable width based on text length
                 if len(text) <= 5 and current_width > 100:
@@ -310,6 +323,139 @@ Be concise and descriptive."""
             elem['y'] = max(36, min(elem.get('y', 0), page_height - 36))
             
             fixed_elements.append(elem)
+        
+        # Post-processing: evenly distribute weekly columns and align labels
+        try:
+            margin = 36.0
+            available_w = max(0.0, page_width - 2 * margin)
+            
+            # 1) Find checkbox rectangles (candidate columns)
+            rects = [e for e in fixed_elements if e.get('type') == 'rectangle']
+            texts = [e for e in fixed_elements if e.get('type') == 'text']
+            
+            # Helper: group items by approximate y (row clustering)
+            def cluster_by_y(items: List[Dict[str, Any]], tol: float = 30.0) -> List[List[Dict[str, Any]]]:
+                items_sorted = sorted(items, key=lambda it: it.get('y', 0))
+                clusters: List[List[Dict[str, Any]]] = []
+                for it in items_sorted:
+                    placed = False
+                    for cluster in clusters:
+                        # compare with cluster center y
+                        cy = sum(c.get('y', 0) for c in cluster) / max(1, len(cluster))
+                        if abs(it.get('y', 0) - cy) <= tol:
+                            cluster.append(it)
+                            placed = True
+                            break
+                    if not placed:
+                        clusters.append([it])
+                return clusters
+            
+            rect_rows = cluster_by_y(rects)
+            
+            # 2) For each row that looks like columns (N>=3), distribute X evenly
+            for row in rect_rows:
+                if len(row) < 3:
+                    continue
+                # Sort by current x to preserve order left->right
+                row_sorted = sorted(row, key=lambda r: r.get('x', 0))
+                N = len(row_sorted)
+                # Use average width to compute spacing to avoid clipping at right margin
+                avg_w = sum(r.get('width', 18) for r in row_sorted) / N
+                # distance between left edges so last rectangle's right edge stays within page
+                step = (available_w - avg_w) / max(1, (N - 1)) if N > 1 else 0
+                for idx, r in enumerate(row_sorted):
+                    target_x = margin + idx * step
+                    r['x'] = max(margin, min(target_x, page_width - margin - r.get('width', 18)))
+                
+                # 3) Align nearby day labels to same X
+                # Find labels likely associated with this row: within vertical window above/below rectangles
+                row_y_min = min(r.get('y', 0) for r in row_sorted)
+                row_y_max = max(r.get('y', 0) + r.get('height', 0) for r in row_sorted)
+                label_window_top = row_y_max + 60  # labels can be somewhat above
+                label_window_bottom = row_y_min - 60  # or slightly below
+                row_labels = [t for t in texts if label_window_bottom <= t.get('y', 0) <= label_window_top]
+                if row_labels:
+                    # sort both by x and pair by order
+                    row_labels_sorted = sorted(row_labels, key=lambda t: t.get('x', 0))
+                    pairs = min(len(row_sorted), len(row_labels_sorted))
+                    for i in range(pairs):
+                        label = row_labels_sorted[i]
+                        rect = row_sorted[i]
+                        rect_x = rect.get('x', 0)
+                        rect_w = rect.get('width', 18)
+                        # Fit label within its column span: step minus padding
+                        max_label_w = max(30.0, step - 8.0) if step > 0 else label.get('width', 60) or 60
+                        label_w = float(label.get('width', 60) or 60)
+                        label_w = max(30.0, min(label_w, max_label_w))
+                        label['width'] = label_w
+                        # Center label horizontally over rect
+                        label['x'] = rect_x + (rect_w / 2) - (label_w / 2)
+                        # Ensure label is ABOVE checkbox in bottom-left coordinates
+                        desired_gap = 12.0
+                        label['y'] = max(label.get('y', 0), rect.get('y', 0) + rect.get('height', 0) + desired_gap)
+            
+        except Exception as _:
+            # Fail-safe: never break generation because of post-processing
+            pass
+        
+        # Helpers for approximate text measurement (simple heuristic)
+        def _estimate_text_size(text: str, font_size: float) -> (float, float):
+            avg_char_width = 0.55  # empirical for Helvetica
+            width = max(1.0, len(text) * font_size * avg_char_width)
+            height = max(12.0, font_size * 1.2)
+            return width, height
+
+        # Final pass: convert bottom-left (AI) -> top-left (Fabric) and clamp using estimated text sizes
+        tl_elements: List[Dict[str, Any]] = []
+        for elem in fixed_elements:
+            w = float(elem.get('width', 0) or 0)
+            h = float(elem.get('height', 0) or 0)
+            t = elem.get('type')
+            props = elem.get('properties', {})
+            if t == 'text':
+                text = props.get('text', '')
+                fs = float(props.get('fontSize', 14) or 14)
+                est_w, est_h = _estimate_text_size(text, fs)
+                # Cap header/labels to available width
+                max_w = available_w
+                if est_w > max_w and est_w > 0:
+                    scale = max(0.5, max_w / est_w)
+                    fs = max(8.0, fs * scale)
+                    props['fontSize'] = fs
+                    est_w, est_h = _estimate_text_size(text, fs)
+                w, h = est_w, est_h
+                elem['width'] = w
+                elem['height'] = h
+                elem['properties'] = props
+            # Convert Y: top = page_height - bottom_y - height
+            bottom_y = float(elem.get('y', 0) or 0)
+            top_y = page_height - bottom_y - h
+            # Clamp in top-left coordinates
+            clamped_x = max(36.0, min(float(elem.get('x', 0) or 0), page_width - 36.0 - w))
+            clamped_y = max(36.0, min(top_y, page_height - 36.0 - h))
+            elem['x'] = clamped_x
+            elem['y'] = clamped_y
+            tl_elements.append(elem)
+
+        # Resolve overlaps by pushing elements down with a small gap
+        def _overlap(a: Dict[str, Any], b: Dict[str, Any]) -> bool:
+            ax, ay, aw, ah = a['x'], a['y'], a.get('width', 0), a.get('height', 0)
+            bx, by, bw, bh = b['x'], b['y'], b.get('width', 0), b.get('height', 0)
+            return not (ax + aw <= bx or bx + bw <= ax or ay + ah <= by or by + bh <= ay)
+
+        tl_elements.sort(key=lambda e: (e['y'], e['x']))  # top to bottom
+        gap = 8.0
+        for i in range(len(tl_elements)):
+            for j in range(i):
+                if _overlap(tl_elements[i], tl_elements[j]):
+                    # push current below previous bottom + gap
+                    prev_bottom = tl_elements[j]['y'] + tl_elements[j].get('height', 0)
+                    tl_elements[i]['y'] = max(tl_elements[i]['y'], prev_bottom + gap)
+                    # keep inside bottom margin
+                    max_top = page_height - 36.0 - tl_elements[i].get('height', 0)
+                    tl_elements[i]['y'] = min(tl_elements[i]['y'], max_top)
+
+        fixed_elements = tl_elements
         
         print(f"✅ Validated {len(fixed_elements)} elements")
         return fixed_elements
