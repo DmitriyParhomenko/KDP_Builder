@@ -55,11 +55,12 @@ async def health():
 
 # Import and include routers (will be created next)
 try:
-    from web.backend.api import designs, ai, export_api
+    from web.backend.api import designs, ai, export_api, patterns
     
     app.include_router(designs.router, prefix="/api/designs", tags=["designs"])
     app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
     app.include_router(export_api.router, prefix="/api/export", tags=["export"])
+    app.include_router(patterns.router, prefix="/api/patterns", tags=["patterns"])
 except ImportError as e:
     print(f"⚠️  API routes not yet created: {e}")
     print("   They will be added in the next steps")

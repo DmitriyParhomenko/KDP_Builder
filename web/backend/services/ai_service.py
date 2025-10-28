@@ -311,12 +311,26 @@ Be concise and descriptive."""
                 elif len(text) <= 15 and current_width > 200:
                     elem['width'] = 120
             
-            # Ensure minimum sizes for clickable elements
+            # Ensure minimum sizes and normalize styling for rectangles
             if elem.get('type') == 'rectangle':
                 if elem.get('width', 0) < 15:
                     elem['width'] = 18
                 if elem.get('height', 0) < 15:
                     elem['height'] = 18
+                props = elem.setdefault('properties', {})
+                # Normalize fill: treat 'none' or empty as transparent
+                fill = str(props.get('fill', '') or '').lower()
+                if fill in {'', 'none', 'null'}:
+                    props['fill'] = 'transparent'
+                # Clamp stroke color and width
+                stroke = props.get('stroke') or '#CCCCCC'
+                props['stroke'] = stroke
+                sw = props.get('strokeWidth')
+                try:
+                    sw_val = float(sw) if sw is not None else 0.5
+                except (TypeError, ValueError):
+                    sw_val = 0.5
+                props['strokeWidth'] = max(0.25, min(sw_val, 2.0))
             
             # Clamp positions to page bounds with margins
             elem['x'] = max(36, min(elem.get('x', 0), page_width - 36))

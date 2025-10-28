@@ -76,3 +76,6 @@ kdp_builder/training_data/learned_patterns/
 # OS / thumbnail files
 Thumbs.db
 Desktop.ini
+
+# Data storage (uploads, parsed patterns)
+data/
