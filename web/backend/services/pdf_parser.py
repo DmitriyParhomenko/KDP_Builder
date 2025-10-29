@@ -2,6 +2,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, Any, List, Tuple
 import json
+import re
 
 # Optional import to avoid hard failure if PyMuPDF isn't installed yet
 try:
@@ -29,32 +30,112 @@ def _extract_text(page: "fitz.Page") -> List[Dict[str, Any]]:
     for block in data.get("blocks", []):
         if block.get("type") != 0:
             continue
-        # Aggregate the block bbox
-        x0, y0, x1, y1 = _rect_to_tuple(block.get("bbox", (0, 0, 0, 0)))
-        text_content: List[str] = []
         for line in block.get("lines", []):
             for span in line.get("spans", []):
-                s = span.get("text", "")
-                if s:
-                    text_content.append(s)
-        full_text = " ".join(text_content).strip()
-        if not full_text:
-            continue
-        items.append({
-            "type": "text",
-            "x": x0,
-            "y": y0,
-            "width": max(1.0, x1 - x0),
-            "height": max(1.0, y1 - y0),
-            "properties": {
-                "text": full_text,
-                "fontSize": 12,  # estimated; refined later if needed
-                "fontFamily": "Helvetica",
-                "color": "#2C2C2C",
-                "align": "left"
-            }
-        })
+                s = (span.get("text", "") or "").strip()
+                if not s:
+                    continue
+                x0, y0, x1, y1 = _rect_to_tuple(span.get("bbox", (0, 0, 0, 0)))
+                items.append({
+                    "type": "text",
+                    "x": x0,
+                    "y": y0,
+                    "width": max(1.0, x1 - x0),
+                    "height": max(1.0, y1 - y0),
+                    "properties": {
+                        "text": s,
+                        "fontSize": float(span.get("size", 12) or 12),
+                        "fontFamily": span.get("font", "Helvetica") or "Helvetica",
+                        "color": "#2C2C2C",
+                        "align": "left"
+                    }
+                })
     return items
+
+
+def _extract_glyph_shapes(page: "fitz.Page") -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Extract shapes inferred from text glyphs, such as checkboxes, stars, and underscore lines.
+    Returns (rectangles, lines).
+    """
+    rectangles: List[Dict[str, Any]] = []
+    lines: List[Dict[str, Any]] = []
+    try:
+        data = page.get_text("dict")
+    except Exception:
+        return rectangles, lines
+
+    BOX_CHARS = set("□☐◻◽◾■")
+    STAR_CHARS = set("★☆✩✪✫✯✰✭✮")
+
+    for block in data.get("blocks", []):
+        if block.get("type") != 0:
+            continue
+        for line in block.get("lines", []):
+            for span in line.get("spans", []):
+                text = span.get("text", "") or ""
+                if not text.strip():
+                    continue
+                # Span bbox
+                sx0, sy0, sx1, sy1 = _rect_to_tuple(span.get("bbox", (0, 0, 0, 0)))
+                sw = max(0.1, sx1 - sx0)
+                sh = max(0.1, sy1 - sy0)
+
+                # Underscore lines: long runs of '_' characters
+                compact = text.replace(" ", "")
+                if re.fullmatch(r"_+", compact or " ") and len(compact) >= 5 and sw >= 40:
+                    y = sy1 - max(1.0, min(3.0, sh * 0.08))
+                    lines.append({
+                        "type": "line",
+                        "x": sx0,
+                        "y": y,
+                        "width": sw,
+                        "height": 0,
+                        "properties": {"stroke": "#2C2C2C", "strokeWidth": 1}
+                    })
+                    continue
+
+                # Checkbox / star glyphs: split span evenly by char count when feasible
+                chars = list(text)
+                has_box = any(c in BOX_CHARS for c in chars)
+                has_star = any(c in STAR_CHARS for c in chars)
+                if not has_box and not has_star:
+                    continue
+
+                count = len(chars)
+                if count <= 0:
+                    continue
+                # approximate per-character width (fallback if the font is proportional)
+                cw = sw / count
+                for i, ch in enumerate(chars):
+                    cx0 = sx0 + i * cw
+                    cx1 = cx0 + cw
+                    cw_eff = max(1.0, cx1 - cx0)
+                    ch_w = cw_eff
+                    ch_h = sh
+                    # normalize to square-ish for checkboxes and stars
+                    side = max(10.0, min(ch_w, ch_h))
+                    x = cx0 + (ch_w - side) / 2.0
+                    y = sy0 + (ch_h - side) / 2.0
+                    if ch in BOX_CHARS:
+                        rectangles.append({
+                            "type": "rectangle",
+                            "x": x,
+                            "y": y,
+                            "width": side,
+                            "height": side,
+                            "properties": {"fill": "transparent", "stroke": "#000000", "strokeWidth": 1}
+                        })
+                    elif ch in STAR_CHARS:
+                        rectangles.append({
+                            "type": "rectangle",
+                            "x": x,
+                            "y": y,
+                            "width": side,
+                            "height": side,
+                            "properties": {"fill": "transparent", "stroke": "#999999", "strokeWidth": 1}
+                        })
+
+    return rectangles, lines
 
 
 def _extract_drawings(page: "fitz.Page") -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
@@ -139,7 +220,8 @@ def analyze_pdf(pattern_dir: Path) -> Dict[str, Any]:
         # Extract primitives
         texts = _extract_text(page)
         rects, lines = _extract_drawings(page)
-        elements = texts + rects + lines
+        g_rects, g_lines = _extract_glyph_shapes(page)
+        elements = texts + rects + lines + g_rects + g_lines
 
         # Save page JSON
         page_json_path = out_dir / f"page_{i+1}.json"

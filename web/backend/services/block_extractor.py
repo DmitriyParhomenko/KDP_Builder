@@ -183,7 +183,12 @@ def _find_grids(rects: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 def _find_checkbox_lists(rects: List[Dict[str, Any]], texts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Detect checkbox + label pairs, group into list blocks (1-2 columns)."""
     # candidate checkboxes: small near-square rects
-    boxes = [r for r in rects if 12 <= r.get("width", 0) <= 26 and 12 <= r.get("height", 0) <= 26 and abs(r.get("width", 0) - r.get("height", 0)) <= 6]
+    boxes = [
+        r for r in rects
+        if 14 <= r.get("width", 0) <= 120
+        and 14 <= r.get("height", 0) <= 120
+        and abs(r.get("width", 0) - r.get("height", 0)) <= max(6, 0.25 * max(r.get("width", 0), r.get("height", 0)))
+    ]
     if not boxes:
         return []
     pairs: List[Dict[str, Any]] = []
@@ -202,7 +207,7 @@ def _find_checkbox_lists(rects: List[Dict[str, Any]], texts: List[Dict[str, Any]
             # vertical overlap with box centerline
             if abs((ty + th / 2) - (by + bh / 2)) <= max(20, bh):
                 dx = tx - (bx + bw)
-                if 4 <= dx <= 220:  # label 4..220 px to the right
+                if 4 <= dx <= 360:  # label 4..360 px to the right (handle larger DPI)
                     if dx < best_dx:
                         best = t
                         best_dx = dx
@@ -237,16 +242,17 @@ def _find_checkbox_lists(rects: List[Dict[str, Any]], texts: List[Dict[str, Any]
     return blocks
 
 
-def _find_labeled_lines(lines: List[Dict[str, Any]], texts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Detect label text with a long horizontal line to the right (Title:, Author:, etc.)."""
-    if not lines:
+def _find_labeled_lines(rects: List[Dict[str, Any]], texts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Detect label text with a long horizontal line represented as a thin rectangle."""
+    if not rects:
         return []
-    # candidate lines: width >= 120 and height ~ 0 (we store height 0)
-    candidates = [ln for ln in lines if ln.get("width", 0) >= 120]
+    # candidate lines: thin rectangles (height <= 6) and width >= 120
+    candidates = [r for r in rects if r.get("width", 0) >= 120 and 0 < r.get("height", 0) <= 6]
     results: List[Dict[str, Any]] = []
     for ln in candidates:
         lx = ln.get("x", 0)
-        ly = ln.get("y", 0)
+        # use vertical center of the thin rectangle as baseline
+        ly = ln.get("y", 0) + ln.get("height", 0) / 2.0
         lw = ln.get("width", 0)
         best = None
         best_dist = 1e9
@@ -268,7 +274,12 @@ def _find_labeled_lines(lines: List[Dict[str, Any]], texts: List[Dict[str, Any]]
 def _find_star_rows(rects: List[Dict[str, Any]], texts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Detect 5 near-identical small shapes (stars) in a row with even spacing."""
     # stars often ~ 18-36 square-ish
-    stars = [r for r in rects if 16 <= r.get("width", 0) <= 40 and 16 <= r.get("height", 0) <= 40]
+    stars = [
+        r for r in rects
+        if 18 <= r.get("width", 0) <= 140
+        and 18 <= r.get("height", 0) <= 140
+        and abs(r.get("width", 0) - r.get("height", 0)) <= max(8, 0.2 * max(r.get("width", 0), r.get("height", 0)))
+    ]
     rows: List[Dict[str, Any]] = []
     if len(stars) < 5:
         return rows
@@ -285,7 +296,7 @@ def _find_star_rows(rects: List[Dict[str, Any]], texts: List[Dict[str, Any]]) ->
             mean_gap = sum(gaps) / len(gaps)
             var_gap = sum((g - mean_gap) ** 2 for g in gaps) / len(gaps)
             rel_std = math.sqrt(var_gap) / max(1e-6, mean_gap)
-            if rel_std <= 0.25:
+            if rel_std <= 0.35:
                 rows.append({"type": "star_row", "stars": run})
                 break
     return rows
@@ -409,7 +420,7 @@ def extract_blocks(pattern_dir: Path) -> Dict[str, Any]:
             all_blocks.append(cb)
 
         # Labeled lines
-        ll_blocks = _find_labeled_lines(lines, texts)
+        ll_blocks = _find_labeled_lines(rects, texts)
         for lb in ll_blocks:
             lb["page"] = page.get("page_index", 0)
             all_blocks.append(lb)
