@@ -191,7 +191,7 @@ def _find_checkbox_lists(rects: List[Dict[str, Any]], texts: List[Dict[str, Any]
     ]
     if not boxes:
         return []
-    pairs: List[Dict[str, Any]] = []
+    entries: List[Dict[str, Any]] = []
     for b in boxes:
         bx = b.get("x", 0)
         by = b.get("y", 0)
@@ -207,17 +207,16 @@ def _find_checkbox_lists(rects: List[Dict[str, Any]], texts: List[Dict[str, Any]
             # vertical overlap with box centerline
             if abs((ty + th / 2) - (by + bh / 2)) <= max(20, bh):
                 dx = tx - (bx + bw)
-                if 4 <= dx <= 360:  # label 4..360 px to the right (handle larger DPI)
+                if 4 <= dx <= 500:  # label 4..500 px to the right (handle larger DPI)
                     if dx < best_dx:
                         best = t
                         best_dx = dx
-        if best:
-            pairs.append({"rect": b, "label": best, "x": bx, "y": by})
+        entries.append({"rect": b, "label": best, "x": bx, "y": by})
 
-    if len(pairs) < 2:
+    if len(entries) < 2:
         return []
-    # group into 1-2 columns by x of boxes
-    xs = sorted(p["x"] for p in pairs)
+    # group into 1-2 columns by x of boxes (use all boxes, even unlabeled)
+    xs = sorted(p["x"] for p in entries)
     split = None
     if len(xs) >= 4:
         # try a simple two-cluster split using mid-gap
@@ -226,7 +225,7 @@ def _find_checkbox_lists(rects: List[Dict[str, Any]], texts: List[Dict[str, Any]
         if max_gap > 120:  # likely two columns
             split = xs[idx]
     cols = [[], []] if split is not None else [[]]
-    for p in pairs:
+    for p in entries:
         if split is None:
             cols[0].append(p)
         else:
@@ -237,7 +236,8 @@ def _find_checkbox_lists(rects: List[Dict[str, Any]], texts: List[Dict[str, Any]
     for col in cols:
         for it in sorted(col, key=lambda v: v["y"]):
             items.append({"rect": it["rect"], "label": it["label"]})
-    if items:
+    # require at least 4 items to avoid noise; labels optional
+    if len(items) >= 4:
         blocks.append({"type": "checkbox_list", "items": items})
     return blocks
 
@@ -266,8 +266,8 @@ def _find_labeled_lines(rects: List[Dict[str, Any]], texts: List[Dict[str, Any]]
                 if dist < best_dist:
                     best = t
                     best_dist = dist
-        if best:
-            results.append({"type": "labeled_line", "label": best, "line": {"x": lx, "y": ly, "width": lw}})
+        # Emit even without label, so overlays still show lines
+        results.append({"type": "labeled_line", "label": best, "line": {"x": lx, "y": ly, "width": lw}})
     return results
 
 
