@@ -100,42 +100,54 @@ async def learn_from_pdf(file: UploadFile = File(...)):
     if not file.filename.endswith('.pdf'):
         raise HTTPException(status_code=400, detail="File must be a PDF")
     
+    # Save uploaded file temporarily
+    temp_path = Path(f"./temp_{file.filename}")
     try:
-        # Save uploaded file temporarily
-        temp_path = Path(f"./temp_{file.filename}")
         with open(temp_path, "wb") as f:
             content = await file.read()
             f.write(content)
-        
-        # Analyze PDF
+
+        # Analyze PDF (always try to return this even if downstream fails)
         analyzer = PDFDesignAnalyzer()
-        patterns = analyzer.analyze_pdf(str(temp_path), planner_type="uploaded")
-        
-        # Generate description using AI
-        description = ai_service.analyze_pdf_pattern(patterns)
-        
-        # Store in ChromaDB
-        pattern_id = pattern_db.add_pattern(
-            pattern_id=None,  # Auto-generate
-            description=description,
-            metadata=patterns
-        )
-        
-        # Clean up temp file
-        temp_path.unlink()
-        
+        patterns = analyzer.analyze_pdf(str(temp_path), planner_type="uploaded") or {}
+
+        # Try to generate AI description; fall back on failure
+        try:
+            description = ai_service.analyze_pdf_pattern(patterns)
+        except Exception as e:
+            description = "Professional planner layout"
+            print(f"⚠️  AI description generation failed: {e}")
+
+        # Try to add to vector DB; mark status
+        stored = True
+        pattern_id = None
+        try:
+            pattern_id = pattern_db.add_pattern(
+                pattern_id=None,
+                description=description,
+                metadata=patterns
+            )
+        except Exception as e:
+            stored = False
+            print(f"⚠️  Storing pattern in DB failed: {e}")
+
         return {
             "success": True,
-            "message": "PDF analyzed and patterns learned",
+            "message": "PDF analyzed",
             "pattern_id": pattern_id,
+            "db_stored": stored,
             "description": description,
-            "patterns": patterns
+            "patterns": patterns,
+            "saved_to": str(analyzer.output_dir),
         }
     except Exception as e:
-        # Clean up temp file if it exists
-        if temp_path.exists():
-            temp_path.unlink()
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        try:
+            if temp_path.exists():
+                temp_path.unlink()
+        except Exception:
+            pass
 
 @router.get("/patterns", response_model=PatternResponse)
 async def get_patterns(query: Optional[str] = None, limit: int = 10):

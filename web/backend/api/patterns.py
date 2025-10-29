@@ -1,4 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import Query
 from typing import List, Dict, Any
 from pathlib import Path
 from uuid import uuid4
@@ -105,7 +106,7 @@ def list_patterns() -> Dict[str, Any]:
 
 
 @router.post("/{pattern_id}/analyze")
-def analyze_pattern(pattern_id: str) -> Dict[str, Any]:
+def analyze_pattern(pattern_id: str, ocr: bool = Query(False)) -> Dict[str, Any]:
     pattern_dir = STORAGE_DIR / pattern_id
     if not pattern_dir.exists():
         raise HTTPException(status_code=404, detail="pattern not found")
@@ -113,7 +114,7 @@ def analyze_pattern(pattern_id: str) -> Dict[str, Any]:
         from web.backend.services.pdf_parser import analyze_pdf  # lazy import
     except Exception as e:
         return {"success": False, "error": f"parser not available: {e}"}
-    result = analyze_pdf(pattern_dir)
+    result = analyze_pdf(pattern_dir, ocr=ocr)
     return result
 
 

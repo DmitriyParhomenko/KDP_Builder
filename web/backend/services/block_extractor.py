@@ -222,7 +222,7 @@ def _find_checkbox_lists(rects: List[Dict[str, Any]], texts: List[Dict[str, Any]
         # try a simple two-cluster split using mid-gap
         gaps = [(xs[i + 1] - xs[i], i) for i in range(len(xs) - 1)]
         max_gap, idx = max(gaps, key=lambda g: g[0])
-        if max_gap > 120:  # likely two columns
+        if max_gap > 200:  # likely two columns (tighter split to avoid mis-grouping)
             split = xs[idx]
     cols = [[], []] if split is not None else [[]]
     for p in entries:
@@ -230,6 +230,11 @@ def _find_checkbox_lists(rects: List[Dict[str, Any]], texts: List[Dict[str, Any]
             cols[0].append(p)
         else:
             (cols[0] if p["x"] <= split else cols[1]).append(p)
+    # Fallback: if one column has too few items, use single-column list
+    if split is not None and (len(cols[0]) < 2 or len(cols[1]) < 2):
+        cols = [[]]
+        for p in entries:
+            cols[0].append(p)
     # Build blocks per column set
     blocks: List[Dict[str, Any]] = []
     items = []
@@ -261,7 +266,7 @@ def _find_labeled_lines(rects: List[Dict[str, Any]], texts: List[Dict[str, Any]]
             ty = t.get("y", 0)
             th = t.get("height", 0)
             # label to the left of the line start, roughly same baseline
-            if tx < lx and abs((ty + th / 2) - ly) <= 16 and (lx - (tx + t.get("width", 0))) <= 40:
+            if tx < lx and abs((ty + th / 2) - ly) <= 16 and (lx - (tx + t.get("width", 0))) <= 100:
                 dist = lx - (tx + t.get("width", 0))
                 if dist < best_dist:
                     best = t
@@ -490,11 +495,24 @@ def extract_blocks(pattern_dir: Path) -> Dict[str, Any]:
                     if ln:
                         x, y, w = ln.get("x", 0), ln.get("y", 0), ln.get("width", 0)
                         draw.line([x, y, x + w, y], fill=color, width=3)
+                    lab = b.get("label")
+                    if lab:
+                        lx, ly, lw, lh = lab.get("x", 0), lab.get("y", 0), lab.get("width", 0), lab.get("height", 0)
+                        draw.rectangle([lx, ly, lx + lw, ly + lh], outline=color, width=2)
                 elif b.get("type") == "star_row":
                     color = (241, 196, 15)  # yellow
                     for r in b.get("stars", []):
                         x, y, w, h = r.get("x", 0), r.get("y", 0), r.get("width", 0), r.get("height", 0)
                         draw.rectangle([x, y, x + w, y + h], outline=color, width=2)
+
+            # Draw all text spans to validate detection
+            try:
+                text_elems = [e for e in page.get("elements", []) if e.get("type") == "text"]
+                for t in text_elems:
+                    x, y, w, h = t.get("x", 0), t.get("y", 0), t.get("width", 0), t.get("height", 0)
+                    draw.rectangle([x, y, x + w, y + h], outline=(100, 100, 100), width=1)
+            except Exception:
+                pass
 
             # Draw legend
             try:
@@ -506,6 +524,7 @@ def extract_blocks(pattern_dir: Path) -> Dict[str, Any]:
                     ("Checkbox List", (231, 76, 60)),
                     ("Labeled Line", (39, 174, 96)),
                     ("Star Row", (241, 196, 15)),
+                    ("Text Span", (100, 100, 100)),
                 ]
                 x0, y0 = 20, 20
                 for idx, (name, col) in enumerate(legend_items):

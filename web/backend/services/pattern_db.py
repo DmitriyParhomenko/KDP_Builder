@@ -61,11 +61,40 @@ class PatternDatabase:
         if pattern_id is None:
             pattern_id = f"pattern_{uuid.uuid4().hex[:8]}"
         
+        # Sanitize metadata: flatten nested dicts/lists into primitives
+        def _sanitize(prefix: str, value: Any, out: Dict[str, Any]):
+            from collections.abc import Mapping, Sequence
+            if value is None or isinstance(value, (str, int, float, bool)):
+                out[prefix] = value
+                return
+            if isinstance(value, Mapping):
+                for k, v in value.items():
+                    key = f"{prefix}_{k}" if prefix else str(k)
+                    _sanitize(key, v, out)
+                return
+            if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+                # If list of primitives and short, join; otherwise store count
+                if all(isinstance(x, (str, int, float, bool)) or x is None for x in value) and len(value) <= 20:
+                    out[prefix] = ",".join(str(x) for x in value)
+                else:
+                    out[f"{prefix}_count"] = len(value)
+                return
+            # Fallback: stringify
+            out[prefix] = str(value)
+
+        flat_meta: Dict[str, Any] = {}
+        _sanitize("", metadata, flat_meta)
+        # Remove empty root key if present
+        if "" in flat_meta:
+            val = flat_meta.pop("")
+            if isinstance(val, (str, int, float, bool)):
+                flat_meta["metadata"] = val
+
         # Add to collection
         self.collection.add(
             ids=[pattern_id],
             documents=[description],
-            metadatas=[metadata],
+            metadatas=[flat_meta],
             embeddings=[embedding] if embedding else None
         )
         

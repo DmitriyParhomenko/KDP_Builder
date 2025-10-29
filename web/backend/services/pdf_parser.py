@@ -3,12 +3,21 @@ from pathlib import Path
 from typing import Dict, Any, List, Tuple
 import json
 import re
+import io
 
 # Optional import to avoid hard failure if PyMuPDF isn't installed yet
 try:
     import fitz  # PyMuPDF
 except Exception:  # pragma: no cover
     fitz = None  # type: ignore
+
+# Optional OCR deps
+try:  # pragma: no cover
+    import pytesseract  # type: ignore
+    from PIL import Image  # type: ignore
+except Exception:  # pragma: no cover
+    pytesseract = None  # type: ignore
+    Image = None  # type: ignore
 
 
 def _ensure_dir(p: Path) -> None:
@@ -202,7 +211,84 @@ def _extract_drawings(page: "fitz.Page") -> Tuple[List[Dict[str, Any]], List[Dic
     return rectangles, lines
 
 
-def analyze_pdf(pattern_dir: Path) -> Dict[str, Any]:
+def _extract_ocr_words(page: "fitz.Page", dpi: int = 400) -> List[Dict[str, Any]]:
+    words: List[Dict[str, Any]] = []
+    if pytesseract is None or Image is None:
+        return words
+    try:
+        zoom = dpi / 72.0
+        mat = fitz.Matrix(zoom, zoom)
+        pix = page.get_pixmap(matrix=mat, alpha=False)
+        img = Image.open(io.BytesIO(pix.tobytes("png")))
+        data = pytesseract.image_to_data(
+            img,
+            output_type=pytesseract.Output.DICT,  # type: ignore
+            config="--oem 3 --psm 6",
+            lang="eng",
+        )  # type: ignore
+        page_w_pt = float(page.rect.width)
+        page_h_pt = float(page.rect.height)
+        img_w = float(pix.width)
+        img_h = float(pix.height)
+        n = len(data.get("text", []))
+        for i in range(n):
+            text = (data["text"][i] or "").strip()
+            try:
+                conf = float(data.get("conf", ["0"]) [i])
+            except Exception:
+                conf = 0.0
+            if not text or len(text) < 2 or conf < 50.0:
+                continue
+            x = float(data.get("left", [0])[i])
+            y = float(data.get("top", [0])[i])
+            w = float(data.get("width", [0])[i])
+            h = float(data.get("height", [0])[i])
+            # scale back to PDF coordinate space (points, top-left origin)
+            x_pt = x / img_w * page_w_pt
+            y_pt = y / img_h * page_h_pt
+            w_pt = w / img_w * page_w_pt
+            h_pt = h / img_h * page_h_pt
+            words.append({
+                "type": "text",
+                "x": x_pt,
+                "y": y_pt,
+                "width": max(1.0, w_pt),
+                "height": max(1.0, h_pt),
+                "properties": {
+                    "text": text,
+                    "fontSize": max(10.0, h_pt * 0.8),
+                    "fontFamily": "OCR",
+                    "color": "#2C2C2C",
+                    "align": "left",
+                    "_ocr": True,
+                    "_conf": conf,
+                }
+            })
+    except Exception:
+        return words
+    return words
+
+
+def _merge_ocr_texts(existing: List[Dict[str, Any]], ocr_texts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    if not ocr_texts:
+        return existing
+    def center(e: Dict[str, Any]):
+        return (e.get("x", 0.0) + (e.get("width", 0.0) / 2.0), e.get("y", 0.0) + (e.get("height", 0.0) / 2.0))
+    merged = existing[:]
+    for t in ocr_texts:
+        cx, cy = center(t)
+        duplicate = False
+        for e in existing:
+            ex, ey = center(e)
+            if abs(ex - cx) <= max(4.0, e.get("width", 0.0) * 0.2) and abs(ey - cy) <= max(4.0, e.get("height", 0.0) * 0.2):
+                duplicate = True
+                break
+        if not duplicate:
+            merged.append(t)
+    return merged
+
+
+def analyze_pdf(pattern_dir: Path, ocr: bool = False) -> Dict[str, Any]:
     if fitz is None:
         return {"success": False, "error": "PyMuPDF (fitz) not installed. Run: pip install PyMuPDF"}
 
@@ -222,6 +308,9 @@ def analyze_pdf(pattern_dir: Path) -> Dict[str, Any]:
         rects, lines = _extract_drawings(page)
         g_rects, g_lines = _extract_glyph_shapes(page)
         elements = texts + rects + lines + g_rects + g_lines
+        if ocr:
+            ocr_words = _extract_ocr_words(page, dpi=400)
+            elements = _merge_ocr_texts(elements, ocr_words)
 
         # Save page JSON
         page_json_path = out_dir / f"page_{i+1}.json"
