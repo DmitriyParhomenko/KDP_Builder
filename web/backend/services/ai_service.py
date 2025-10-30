@@ -47,9 +47,12 @@ class AIService:
         # Search for similar patterns if not provided
         if context_patterns is None:
             context_patterns = pattern_db.search_patterns(prompt, n_results=3)
+        print(f"🔍 Found {len(context_patterns)} similar patterns")
         
         # Build context from similar patterns
         context = self._build_context(context_patterns)
+        print("📚 Context examples:")
+        print(context[:500])
         
         # Create prompt for AI
         full_prompt = f"""You are a professional KDP planner designer. Generate a JSON layout for this request:
@@ -137,26 +140,38 @@ CRITICAL RULES:
 GENERATE LAYOUT:"""
         
         try:
-            # Generate with Ollama
+            print("🤖 Querying Ollama...")
             response = ollama.generate(
                 model=self.model,
                 prompt=full_prompt
             )
             
-            # Extract JSON from response
-            layout_json = self._extract_json(response['response'])
+            raw = response.get("response", "")
+            print("🔧 Raw AI response:")
+            print(raw)
             
-            if layout_json:
+            # Try to extract JSON from response
+            elements = self._extract_json(raw)
+            
+            if elements is None:
+                print("❌ Failed to parse AI response")
+                return {
+                    "success": False,
+                    "elements": [],
+                    "context_patterns": context_patterns,
+                    "model": self.model,
+                    "error": "Failed to parse AI response"
+                }
+            else:
                 # Validate and fix common issues
-                layout_json = self._validate_and_fix_layout(layout_json, page_width, page_height)
+                elements = self._validate_and_fix_layout(elements, page_width, page_height)
                 
                 return {
                     "success": True,
-                    "elements": layout_json,
+                    "elements": elements,
                     "context_patterns": [p["id"] for p in context_patterns],
                     "model": self.model
                 }
-            else:
                 return {
                     "success": False,
                     "error": "Failed to parse AI response",
@@ -492,6 +507,24 @@ Be concise and descriptive."""
             return json.loads(text)
         except json.JSONDecodeError:
             return None
+
+    def _build_context(self, patterns: List[Dict[str, Any]]) -> str:
+        """Build a concise context string from retrieved patterns."""
+        if not patterns:
+            return "No similar patterns found."
+        lines = []
+        for i, p in enumerate(patterns, 1):
+            lines.append(f"Example {i}:")
+            lines.append(f"- Description: {p.get('description', 'N/A')[:200]}")
+            blocks = p.get("blocks", [])
+            if blocks:
+                types = [b.get("type") for b in blocks]
+                lines.append(f"- Blocks: {', '.join(types[:5])}")
+            style = p.get("style_tokens", {})
+            if style:
+                lines.append(f"- Style: {style}")
+            lines.append("")
+        return "\n".join(lines)
 
 # Global instance
 ai_service = AIService()

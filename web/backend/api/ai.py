@@ -20,10 +20,11 @@ from kdp_builder.analysis.pdf_analyzer import PDFDesignAnalyzer
 router = APIRouter()
 
 class LayoutRequest(BaseModel):
-    """Request for AI layout generation"""
+    """Request for layout generation"""
     prompt: str
     page_width: float = 432.0
     page_height: float = 648.0
+    rag: bool = True
 
 class LayoutResponse(BaseModel):
     """Response with generated layout"""
@@ -62,7 +63,8 @@ async def suggest_layout(request: LayoutRequest):
         result = ai_service.generate_layout(
             prompt=request.prompt,
             page_width=request.page_width,
-            page_height=request.page_height
+            page_height=request.page_height,
+            context_patterns=pattern_db.search_patterns(request.prompt, n_results=3) if request.rag else None
         )
         
         return LayoutResponse(**result)
