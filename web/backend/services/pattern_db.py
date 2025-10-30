@@ -101,6 +101,81 @@ class PatternDatabase:
         print(f"✅ Added pattern: {pattern_id}")
         return pattern_id
     
+    def add_extracted_pattern(
+        self,
+        pattern_id: Optional[str],
+        description: str,
+        metadata: Dict[str, Any],
+        blocks: List[Dict[str, Any]],
+        elements: List[Dict[str, Any]],
+        style_tokens: Optional[Dict[str, Any]] = None,
+        embedding: Optional[List[float]] = None
+    ) -> str:
+        """
+        Add a pattern with extracted blocks, elements, and style tokens.
+
+        Args:
+            pattern_id: Unique pattern ID (auto-generated if None)
+            description: Text description of the pattern
+            metadata: Pattern metadata (measurements, colors, etc.)
+            blocks: List of extracted blocks
+            elements: List of raw elements
+            style_tokens: Optional style tokens summary
+            embedding: Optional custom embedding vector
+
+        Returns:
+            Pattern ID
+        """
+        if pattern_id is None:
+            pattern_id = f"pattern_{uuid.uuid4().hex[:8]}"
+
+        # Store blocks/elements JSON on disk under a new 'patterns' directory
+        patterns_dir = Path("./data/patterns")
+        patterns_dir.mkdir(parents=True, exist_ok=True)
+        pattern_dir = patterns_dir / pattern_id
+        pattern_dir.mkdir(parents=True, exist_ok=True)
+        (pattern_dir / "blocks.json").write_text(json.dumps({"blocks": blocks}, indent=2))
+        (pattern_dir / "elements.json").write_text(json.dumps({"elements": elements}, indent=2))
+        if style_tokens:
+            (pattern_dir / "style_tokens.json").write_text(json.dumps(style_tokens, indent=2))
+
+        # Sanitize metadata for ChromaDB (flatten nested dicts/lists)
+        def _sanitize(prefix: str, value: Any, out: Dict[str, Any]):
+            from collections.abc import Mapping, Sequence
+            if value is None or isinstance(value, (str, int, float, bool)):
+                out[prefix] = value
+                return
+            if isinstance(value, Mapping):
+                for k, v in value.items():
+                    key = f"{prefix}_{k}" if prefix else str(k)
+                    _sanitize(key, v, out)
+                return
+            if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+                if all(isinstance(x, (str, int, float, bool)) or x is None for x in value) and len(value) <= 20:
+                    out[prefix] = ",".join(str(x) for x in value)
+                else:
+                    out[f"{prefix}_count"] = len(value)
+                return
+            out[prefix] = str(value)
+
+        flat_meta: Dict[str, Any] = {}
+        _sanitize("", metadata, flat_meta)
+        if "" in flat_meta:
+            val = flat_meta.pop("")
+            if isinstance(val, (str, int, float, bool)):
+                flat_meta["metadata"] = val
+
+        # Add to ChromaDB
+        self.collection.add(
+            ids=[pattern_id],
+            documents=[description],
+            metadatas=[flat_meta],
+            embeddings=[embedding] if embedding else None
+        )
+
+        print(f"✅ Added extracted pattern: {pattern_id}")
+        return pattern_id
+    
     def search_patterns(
         self,
         query: str,
@@ -157,6 +232,32 @@ class PatternDatabase:
             }
         return None
     
+    def get_pattern_with_extracted(self, pattern_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get a pattern including its stored blocks, elements, and style tokens.
+
+        Args:
+            pattern_id: Pattern ID
+
+        Returns:
+            Pattern data with extracted payloads or None if not found
+        """
+        vec = self.get_pattern(pattern_id)
+        if not vec:
+            return None
+        pattern_dir = Path("./data/patterns") / pattern_id
+        result = {"id": vec["id"], "description": vec["description"], "metadata": vec["metadata"]}
+        try:
+            if (pattern_dir / "blocks.json").exists():
+                result["blocks"] = json.loads((pattern_dir / "blocks.json").read_text())["blocks"]
+            if (pattern_dir / "elements.json").exists():
+                result["elements"] = json.loads((pattern_dir / "elements.json").read_text())["elements"]
+            if (pattern_dir / "style_tokens.json").exists():
+                result["style_tokens"] = json.loads((pattern_dir / "style_tokens.json").read_text())
+        except Exception as e:
+            print(f"⚠️  Failed to load extracted files for {pattern_id}: {e}")
+        return result
+    
     def get_all_patterns(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """
         Get all stored patterns.
@@ -191,11 +292,51 @@ class PatternDatabase:
         """
         try:
             self.collection.delete(ids=[pattern_id])
+            # Also delete stored JSON files
+            pattern_dir = Path("./data/patterns") / pattern_id
+            if pattern_dir.exists():
+                import shutil
+                shutil.rmtree(pattern_dir)
             print(f"🗑️  Deleted pattern: {pattern_id}")
             return True
         except Exception as e:
             print(f"❌ Error deleting pattern {pattern_id}: {e}")
             return False
+    
+    def list_patterns_with_extracted(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """
+        List patterns including a summary of extracted blocks and elements.
+
+        Args:
+            limit: Maximum number of patterns to return
+
+        Returns:
+            List of patterns with extracted summaries
+        """
+        vecs = self.get_all_patterns(limit)
+        results = []
+        for v in vecs:
+            summary = {"id": v["id"], "description": v["description"], "metadata": v["metadata"]}
+            pattern_dir = Path("./data/patterns") / v["id"]
+            try:
+                if (pattern_dir / "blocks.json").exists():
+                    blocks = json.loads((pattern_dir / "blocks.json").read_text())["blocks"]
+                    summary["blocks_summary"] = {
+                        "count": len(blocks),
+                        "types": list({b.get("type") for b in blocks})
+                    }
+                if (pattern_dir / "elements.json").exists():
+                    elements = json.loads((pattern_dir / "elements.json").read_text())["elements"]
+                    summary["elements_summary"] = {
+                        "count": len(elements),
+                        "types": list({e.get("type") for e in elements})
+                    }
+                if (pattern_dir / "style_tokens.json").exists():
+                    summary["has_style_tokens"] = True
+            except Exception as e:
+                print(f"⚠️  Failed to summarize extracted files for {v['id']}: {e}")
+            results.append(summary)
+        return results
     
     def update_pattern(
         self,

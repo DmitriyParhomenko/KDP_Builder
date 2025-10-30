@@ -132,15 +132,49 @@ def get_analysis(pattern_id: str) -> Dict[str, Any]:
 
 
 @router.post("/{pattern_id}/extract")
-def extract_blocks_api(pattern_id: str) -> Dict[str, Any]:
+def extract_blocks(pattern_id: str) -> Dict[str, Any]:
+    """Extract blocks from analyzed pages"""
     pattern_dir = STORAGE_DIR / pattern_id
     if not pattern_dir.exists():
         raise HTTPException(status_code=404, detail="pattern not found")
     try:
-        from web.backend.services.block_extractor import extract_blocks  # lazy import
+        from web.backend.services.block_extractor import extract_blocks as _extract
+        from web.backend.services.ai_service import ai_service
+        # Extract
+        result = _extract(pattern_dir)
+        if not result.get("success"):
+            raise HTTPException(status_code=500, detail=result.get("error", "extraction failed"))
+        # Optional: store blocks+elements in pattern DB for RAG
+        try:
+            blocks = result.get("blocks", [])
+            elements = result.get("elements", [])
+            # Simple style token summary
+            style_tokens = {
+                "block_types": list({b.get("type") for b in blocks}),
+                "element_types": list({e.get("type") for e in elements}),
+                "num_blocks": len(blocks),
+                "num_elements": len(elements)
+            }
+            # Generate description via AI
+            description = ai_service.analyze_pdf_pattern({"blocks": blocks, "elements": elements})
+            # Persist to pattern DB (extracted variant)
+            from web.backend.services.pattern_db import pattern_db
+            pattern_db.add_extracted_pattern(
+                pattern_id=pattern_id,
+                description=description,
+                metadata={"source": "extracted", "pattern_id": pattern_id},
+                blocks=blocks,
+                elements=elements,
+                style_tokens=style_tokens
+            )
+        except Exception as e:
+            # Non-blocking: extraction still succeeded
+            print(f"⚠️  Failed to persist extracted pattern to DB: {e}")
+        return result
+    except HTTPException:
+        raise
     except Exception as e:
-        return {"success": False, "error": f"block extractor not available: {e}"}
-    return extract_blocks(pattern_dir)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/{pattern_id}/extracted")
@@ -153,6 +187,58 @@ def get_extracted(pattern_id: str) -> Dict[str, Any]:
     try:
         blocks = json.loads(blocks_path.read_text(encoding="utf-8"))
         elements = json.loads(elements_path.read_text(encoding="utf-8"))
+        return {"success": True, "blocks": blocks, "elements": elements}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"failed to read extracted data: {e}")
-    return {"success": True, "blocks": blocks, "elements": elements}
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/")
+def list_patterns(limit: int = 50) -> Dict[str, Any]:
+    """List all patterns with extracted summaries"""
+    try:
+        from web.backend.services.pattern_db import pattern_db
+        patterns = pattern_db.list_patterns_with_extracted(limit=limit)
+        return {"success": True, "patterns": patterns}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{pattern_id}")
+def get_pattern_details(pattern_id: str) -> Dict[str, Any]:
+    """Get a pattern with its extracted blocks, elements, and style tokens"""
+    try:
+        from web.backend.services.pattern_db import pattern_db
+        pattern = pattern_db.get_pattern_with_extracted(pattern_id)
+        if pattern is None:
+            raise HTTPException(status_code=404, detail="pattern not found")
+        return {"success": True, "pattern": pattern}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/{pattern_id}")
+def delete_pattern(pattern_id: str) -> Dict[str, Any]:
+    """Delete a pattern and its extracted files"""
+    try:
+        from web.backend.services.pattern_db import pattern_db
+        success = pattern_db.delete_pattern(pattern_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="pattern not found")
+        return {"success": True, "message": "Pattern deleted"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/search")
+def search_patterns(q: str, limit: int = 10) -> Dict[str, Any]:
+    """Search patterns by text query"""
+    try:
+        from web.backend.services.pattern_db import pattern_db
+        results = pattern_db.search_patterns(q, n_results=limit)
+        return {"success": True, "patterns": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
