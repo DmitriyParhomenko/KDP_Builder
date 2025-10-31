@@ -1,10 +1,11 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
-from fastapi import Query
-from typing import List, Dict, Any
+from fastapi import APIRouter, UploadFile, File, HTTPException, Query
+from fastapi.responses import FileResponse
 from pathlib import Path
-from uuid import uuid4
-import shutil
 import json
+import uuid
+import shutil
+from typing import Dict, Any, Optional, List
+from uuid import uuid4
 import os
 
 router = APIRouter()
@@ -240,5 +241,25 @@ def search_patterns(q: str, limit: int = 10) -> Dict[str, Any]:
         from web.backend.services.pattern_db import pattern_db
         results = pattern_db.search_patterns(q, n_results=limit)
         return {"success": True, "patterns": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{pattern_id}/thumbnail")
+def get_thumbnail(pattern_id: str) -> FileResponse:
+    """Serve pattern thumbnail PNG"""
+    thumb_path = STORAGE_DIR / pattern_id / "thumbnail.png"
+    if not thumb_path.exists():
+        raise HTTPException(status_code=404, detail="thumbnail not found")
+    return FileResponse(thumb_path, media_type="image/png")
+
+
+@router.post("/thumbnails/generate")
+def generate_thumbnails() -> Dict[str, Any]:
+    """Generate thumbnails for all patterns with extracted data"""
+    try:
+        from web.backend.services.thumbnail_generator import generate_all_thumbnails
+        count = generate_all_thumbnails()
+        return {"success": True, "generated": count}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
