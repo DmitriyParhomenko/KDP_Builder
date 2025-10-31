@@ -4,7 +4,80 @@ from typing import Dict, Any, List, Tuple
 import json
 import math
 
+try:
+    import cv2
+    import numpy as np
+except ImportError:
+    cv2 = None
+    np = None
+
 # Coordinate system expected: top-left (as produced by pdf_parser.analyze_pdf)
+
+def _merge_lines_cv(page_png_path: Path, dpi_scale: float = 1.0) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """
+    Use OpenCV to merge fragmented lines via morphological operations.
+    Returns merged horizontal and vertical line primitives.
+    """
+    if cv2 is None or np is None or not page_png_path.exists():
+        return [], []
+    img = cv2.imread(str(page_png_path), cv2.IMREAD_GRAYSCALE)
+    if img is None:
+        return [], []
+    # Binarize
+    _, binary = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    # Morphological close to connect gaps
+    kernel_h = cv2.getStructuringElement(cv2.MORPH_RECT, (int(25 * dpi_scale), 1))
+    kernel_v = cv2.getStructuringElement(cv2.MORPH_RECT, (1, int(25 * dpi_scale)))
+    closed_h = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel_h)
+    closed_v = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel_v)
+    # HoughLinesP
+    def _lines_from_image(closed_img, orientation):
+        lines = cv2.HoughLinesP(closed_img, rho=1, theta=np.pi/180 if orientation == 'h' else np.pi/2, threshold=30, minLineLength=int(40 * dpi_scale), maxLineGap=int(12 * dpi_scale))
+        if lines is None:
+            return []
+        result = []
+        for l in lines:
+            x1, y1, x2, y2 = l[0]
+            if orientation == 'h':
+                # Ensure horizontal
+                if abs(y2 - y1) > 5:
+                    continue
+                x, y = min(x1, x2), (y1 + y2) / 2.0
+                w = abs(x2 - x1)
+                result.append({"type": "line", "x": x / dpi_scale, "y": y / dpi_scale, "width": w / dpi_scale, "height": 0.0, "properties": {}})
+            else:
+                # Ensure vertical
+                if abs(x2 - x1) > 5:
+                    continue
+                x, y = (x1 + x2) / 2.0, min(y1, y2)
+                h = abs(y2 - y1)
+                result.append({"type": "line", "x": x / dpi_scale, "y": y / dpi_scale, "width": 0.0, "height": h / dpi_scale, "properties": {}})
+        return result
+    merged_h = _lines_from_image(closed_h, 'h')
+    merged_v = _lines_from_image(closed_v, 'v')
+    return merged_h, merged_v
+
+
+def _find_contour_checkboxes(page_png_path: Path, dpi_scale: float = 1.0) -> List[Dict[str, Any]]:
+    """
+    Detect checkboxes via contours (small squares) using OpenCV.
+    Returns list of rectangle primitives.
+    """
+    if cv2 is None or np is None or not page_png_path.exists():
+        return []
+    img = cv2.imread(str(page_png_path), cv2.IMREAD_GRAYSCALE)
+    if img is None:
+        return []
+    _, binary = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    contours, _ = cv2.findContours(binary, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    checkboxes = []
+    for cnt in contours:
+        x, y, w, h = cv2.boundingRect(cnt)
+        # Filter small squares
+        if 8 <= w / dpi_scale <= 30 and 8 <= h / dpi_scale <= 30 and abs(w - h) <= max(6, 0.3 * max(w, h)):
+            checkboxes.append({"type": "rectangle", "x": x / dpi_scale, "y": y / dpi_scale, "width": w / dpi_scale, "height": h / dpi_scale, "properties": {}})
+    return checkboxes
+
 
 def _load_pages(analysis_dir: Path) -> List[Dict[str, Any]]:
     pages: List[Dict[str, Any]] = []
@@ -180,6 +253,124 @@ def _find_grids(rects: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return blocks
 
 
+def _find_grids_from_lines(lines: List[Dict[str, Any]], page_w: float, page_h: float) -> List[Dict[str, Any]]:
+    """Detect table-like grids from stroke lines (horizontal/vertical).
+    Accepts line primitives where horizontal lines have near-zero height and vertical lines have near-zero width.
+    """
+    blocks: List[Dict[str, Any]] = []
+    if not lines:
+        return blocks
+    # Separate horizontal and vertical lines
+    horizontals = [l for l in lines if abs(l.get("height", 0.0)) <= 2 and l.get("width", 0.0) >= 100]
+    verticals = [l for l in lines if abs(l.get("width", 0.0)) <= 2 and l.get("height", 0.0) >= 100]
+    if len(horizontals) < 3 or len(verticals) < 2:
+        return blocks
+    # Cluster by quantized positions to reduce DPI noise
+    y_clusters = sorted(set(int(_quantize(h.get("y", 0.0), 5.0)) for h in horizontals))
+    x_clusters = sorted(set(int(_quantize(v.get("x", 0.0), 5.0)) for v in verticals))
+    if len(y_clusters) < 3 or len(x_clusters) < 2:
+        return blocks
+    # Compute outer bounds from horizontal spans and vertical spans
+    min_x = min((h.get("x", 0.0) for h in horizontals), default=0.0)
+    max_x = max((h.get("x", 0.0) + h.get("width", 0.0) for h in horizontals), default=page_w)
+    min_y = min((min(h.get("y", 0.0), v.get("y", 0.0)) for v in verticals for h in horizontals), default=0.0)
+    max_y = max((max(h.get("y", 0.0), v.get("y", 0.0) + v.get("height", 0.0)) for v in verticals for h in horizontals), default=page_h)
+    bw, bh = float(max_x - min_x), float(max_y - min_y)
+    # Reject tiny or edge artifacts
+    if bw < 200 or bh < 120:
+        return blocks
+    # Coverage checks: average line lengths should cover majority of bounds
+    avg_h_len = (_median([h.get("width", 0.0) for h in horizontals]) or 0.0)
+    avg_v_len = (_median([v.get("height", 0.0) for v in verticals]) or 0.0)
+    if bw > 0 and bh > 0:
+        if (avg_h_len / bw) < 0.6 or (avg_v_len / bh) < 0.6:
+            return blocks
+    bounds = {"x": float(min_x), "y": float(min_y), "width": bw, "height": bh}
+    blocks.append({
+        "type": "grid",
+        "rows": len(y_clusters),
+        "cols": len(x_clusters),
+        "bounds": bounds,
+        "lines_h": horizontals,
+        "lines_v": verticals,
+    })
+    return blocks
+
+
+def _find_grids_from_merged_lines(merged_h: List[Dict[str, Any]], merged_v: List[Dict[str, Any]], page_w: float, page_h: float) -> List[Dict[str, Any]]:
+    """Detect grids from CV-merged lines (more robust to gaps)."""
+    blocks: List[Dict[str, Any]] = []
+    if len(merged_h) < 3 or len(merged_v) < 2:
+        return blocks
+    # Cluster by quantized positions
+    y_clusters = sorted(set(int(_quantize(h.get("y", 0.0), 5.0)) for h in merged_h))
+    x_clusters = sorted(set(int(_quantize(v.get("x", 0.0), 5.0)) for v in merged_v))
+    if len(y_clusters) < 3 or len(x_clusters) < 2:
+        return blocks
+    min_x = min((h.get("x", 0.0) for h in merged_h), default=0.0)
+    max_x = max((h.get("x", 0.0) + h.get("width", 0.0) for h in merged_h), default=page_w)
+    min_y = min((min(h.get("y", 0.0), v.get("y", 0.0)) for v in merged_v for h in merged_h), default=0.0)
+    max_y = max((max(h.get("y", 0.0), v.get("y", 0.0) + v.get("height", 0.0)) for v in merged_v for h in merged_h), default=page_h)
+    bw, bh = float(max_x - min_x), float(max_y - min_y)
+    # Reject tiny candidates (likely text strokes) and those with insufficient lines
+    if bw < 200 or bh < 120 or len(y_clusters) < 3 or len(x_clusters) < 3:
+        return blocks
+    # Coverage checks: median lengths should span most of bounds
+    med_h_len = (_median([h.get("width", 0.0) for h in merged_h]) or 0.0)
+    med_v_len = (_median([v.get("height", 0.0) for v in merged_v]) or 0.0)
+    if (med_h_len / bw) < 0.6 or (med_v_len / bh) < 0.6:
+        return blocks
+    bounds = {"x": float(min_x), "y": float(min_y), "width": bw, "height": bh}
+    blocks.append({
+        "type": "grid",
+        "rows": len(y_clusters),
+        "cols": len(x_clusters),
+        "bounds": bounds,
+        "lines_h": merged_h,
+        "lines_v": merged_v,
+        "source": "cv_merged"
+    })
+    return blocks
+
+
+def _find_checkbox_lists_from_contours(contour_checkboxes: List[Dict[str, Any]], texts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Detect checkbox + label pairs from CV-detected contours."""
+    if not contour_checkboxes:
+        return []
+    entries: List[Dict[str, Any]] = []
+    for b in contour_checkboxes:
+        bx = b.get("x", 0)
+        by = b.get("y", 0)
+        bw = b.get("width", 0)
+        bh = b.get("height", 0)
+        # find nearest text to the right on same baseline window
+        best = None
+        best_dx = 1e9
+        for t in texts:
+            tx = t.get("x", 0)
+            ty = t.get("y", 0)
+            th = t.get("height", 0)
+            # vertical overlap with box centerline
+            if abs((ty + th / 2) - (by + bh / 2)) <= max(20, bh):
+                dx = tx - (bx + bw)
+                if 4 <= dx <= 500:
+                    if dx < best_dx:
+                        best = t
+                        best_dx = dx
+        entries.append({"rect": b, "label": best, "x": bx, "y": by})
+    if len(entries) < 2:
+        return []
+    # simple single-column grouping for contours
+    items = []
+    for it in sorted(entries, key=lambda v: v["y"]):
+        items.append({"rect": it["rect"], "label": it["label"]})
+    if len(items) >= 4:
+        blocks = [{"type": "checkbox_list", "items": items, "source": "cv_contour"}]
+    else:
+        blocks = []
+    return blocks
+
+
 def _find_checkbox_lists(rects: List[Dict[str, Any]], texts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Detect checkbox + label pairs, group into list blocks (1-2 columns)."""
     # candidate checkboxes: small near-square rects
@@ -247,32 +438,44 @@ def _find_checkbox_lists(rects: List[Dict[str, Any]], texts: List[Dict[str, Any]
     return blocks
 
 
-def _find_labeled_lines(rects: List[Dict[str, Any]], texts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Detect label text with a long horizontal line represented as a thin rectangle."""
-    if not rects:
-        return []
-    # candidate lines: thin rectangles (height <= 6) and width >= 120
-    candidates = [r for r in rects if r.get("width", 0) >= 120 and 0 < r.get("height", 0) <= 6]
+def _find_labeled_lines(rects: List[Dict[str, Any]], lines: List[Dict[str, Any]], texts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Detect label text with a long horizontal line represented either as a thin rectangle or a line primitive."""
     results: List[Dict[str, Any]] = []
-    for ln in candidates:
-        lx = ln.get("x", 0)
-        # use vertical center of the thin rectangle as baseline
-        ly = ln.get("y", 0) + ln.get("height", 0) / 2.0
-        lw = ln.get("width", 0)
+    # candidate thin-rect lines
+    rect_candidates = [r for r in (rects or []) if r.get("width", 0) >= 120 and 0 < r.get("height", 0) <= 6]
+    # candidate line primitives
+    line_candidates = [l for l in (lines or []) if l.get("width", 0) >= 120 and abs(l.get("height", 0)) <= 2]
+
+    def _attach_label(lx: float, ly: float, lw: float) -> Dict[str, Any] | None:
         best = None
         best_dist = 1e9
         for t in texts:
             tx = t.get("x", 0)
             ty = t.get("y", 0)
             th = t.get("height", 0)
-            # label to the left of the line start, roughly same baseline
-            if tx < lx and abs((ty + th / 2) - ly) <= 16 and (lx - (tx + t.get("width", 0))) <= 100:
+            if tx < lx and abs((ty + th / 2) - ly) <= 16 and (lx - (tx + t.get("width", 0))) <= 120:
                 dist = lx - (tx + t.get("width", 0))
                 if dist < best_dist:
                     best = t
                     best_dist = dist
-        # Emit even without label, so overlays still show lines
+        return best
+
+    # From rectangles
+    for ln in rect_candidates:
+        lx = ln.get("x", 0)
+        ly = ln.get("y", 0) + ln.get("height", 0) / 2.0
+        lw = ln.get("width", 0)
+        best = _attach_label(lx, ly, lw)
         results.append({"type": "labeled_line", "label": best, "line": {"x": lx, "y": ly, "width": lw}})
+
+    # From line primitives
+    for ln in line_candidates:
+        lx = ln.get("x", 0)
+        ly = ln.get("y", 0)
+        lw = ln.get("width", 0)
+        best = _attach_label(lx, ly, lw)
+        results.append({"type": "labeled_line", "label": best, "line": {"x": lx, "y": ly, "width": lw}})
+
     return results
 
 
@@ -399,6 +602,16 @@ def extract_blocks(pattern_dir: Path) -> Dict[str, Any]:
         rects = [e for e in elems if e.get("type") == "rectangle"]
         lines = [e for e in elems if e.get("type") == "line"]
 
+        # CV line merging and contour detection if PNG available
+        page_png_path = analysis_dir / f"page_{page.get('page_index', 0)+1}.png"
+        merged_h, merged_v = [], []
+        contour_checkboxes = []
+        if page_png_path.exists():
+            # Estimate DPI scale from page size vs typical letter size (612x792)
+            dpi_scale = max(page_w / 612.0, page_h / 792.0)
+            merged_h, merged_v = _merge_lines_cv(page_png_path, dpi_scale)
+            contour_checkboxes = _find_contour_checkboxes(page_png_path, dpi_scale)
+
         header = _find_header(texts, page_h)
         if header:
             all_blocks.append({"type": "header", "text": header, "page": page.get("page_index", 0)})
@@ -413,19 +626,39 @@ def extract_blocks(pattern_dir: Path) -> Dict[str, Any]:
             g["page"] = page.get("page_index", 0)
             all_blocks.append(g)
 
+        # Grids from stroke lines (tables)
+        grids2 = _find_grids_from_lines(lines, page_w, page_h)
+        for g2 in grids2:
+            g2["page"] = page.get("page_index", 0)
+            all_blocks.append(g2)
+
+        # Grids from CV-merged lines (more robust)
+        if merged_h or merged_v:
+            grids3 = _find_grids_from_merged_lines(merged_h, merged_v, page_w, page_h)
+            for g3 in grids3:
+                g3["page"] = page.get("page_index", 0)
+                all_blocks.append(g3)
+
         note_blocks = _find_notes(rects, texts)
         for nb in note_blocks:
             nb["page"] = page.get("page_index", 0)
             all_blocks.append(nb)
 
-        # Checkbox lists
+        # Checkbox lists (original rects)
         cb_lists = _find_checkbox_lists(rects, texts)
         for cb in cb_lists:
             cb["page"] = page.get("page_index", 0)
             all_blocks.append(cb)
 
+        # Checkbox lists from CV contours (fallback if no original rects)
+        if not cb_lists and contour_checkboxes:
+            cb_contour_lists = _find_checkbox_lists_from_contours(contour_checkboxes, texts)
+            for cb in cb_contour_lists:
+                cb["page"] = page.get("page_index", 0)
+                all_blocks.append(cb)
+
         # Labeled lines
-        ll_blocks = _find_labeled_lines(rects, texts)
+        ll_blocks = _find_labeled_lines(rects, lines, texts)
         for lb in ll_blocks:
             lb["page"] = page.get("page_index", 0)
             all_blocks.append(lb)
@@ -470,6 +703,16 @@ def extract_blocks(pattern_dir: Path) -> Dict[str, Any]:
                     bd = b.get("bounds", {})
                     x, y, w, h = bd.get("x", 0), bd.get("y", 0), bd.get("width", 0), bd.get("height", 0)
                     draw.rectangle([x, y, x + w, y + h], outline=color, width=3)
+                    # draw internal lines if provided (from stroke-based grid detection)
+                    for hl in b.get("lines_h", []):
+                        xh, yh, wh = hl.get("x", 0), hl.get("y", 0), hl.get("width", 0)
+                        draw.line([xh, yh, xh + wh, yh], fill=color, width=2)
+                    for vl in b.get("lines_v", []):
+                        xv, yv, hv = vl.get("x", 0), vl.get("y", 0), vl.get("height", 0)
+                        draw.line([xv, yv, xv, yv + hv], fill=color, width=2)
+                    # distinguish CV-merged grids with a thicker border
+                    if b.get("source") == "cv_merged":
+                        draw.rectangle([x, y, x + w, y + h], outline=color, width=5)
                 elif b.get("type") == "notes":
                     color = (142, 68, 173)  # purple
                     r = b.get("rect")

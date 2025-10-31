@@ -13,6 +13,55 @@ except ImportError:
     Image = None
     ImageDraw = None
 
+def _estimate_page_size(elements: List[Dict[str, Any]], blocks: List[Dict[str, Any]]) -> Tuple[float, float]:
+    """Estimate page width/height from element and block extents.
+    Falls back to at least (432, 648) if nothing found.
+    """
+    max_x = 0.0
+    max_y = 0.0
+    def upd_rect(x, y, w, h):
+        nonlocal max_x, max_y
+        max_x = max(max_x, float(x) + float(w))
+        max_y = max(max_y, float(y) + float(h))
+
+    # Elements
+    for el in elements or []:
+        t = el.get("type")
+        x = el.get("x", 0.0)
+        y = el.get("y", 0.0)
+        w = el.get("width", 0.0)
+        h = el.get("height", 0.0)
+        if t in ("rectangle", "text"):
+            upd_rect(x, y, w, h)
+        elif t == "line":
+            upd_rect(x, y, w, h)
+
+    # Blocks
+    for b in blocks or []:
+        bt = b.get("type")
+        if bt == "labeled_line":
+            ln = b.get("line", {})
+            upd_rect(ln.get("x", 0.0), ln.get("y", 0.0), ln.get("width", 0.0), 0.0)
+        elif bt == "grid":
+            bd = b.get("bounds", {}) or {}
+            upd_rect(bd.get("x", 0.0), bd.get("y", 0.0), bd.get("width", 0.0), bd.get("height", 0.0))
+        elif bt == "weekly_row":
+            for r in b.get("rects", []) or []:
+                upd_rect(r.get("x", 0.0), r.get("y", 0.0), r.get("width", 0.0), r.get("height", 0.0))
+        elif bt == "checkbox_list":
+            for it in b.get("items", []) or []:
+                r = it.get("rect") or {}
+                upd_rect(r.get("x", 0.0), r.get("y", 0.0), r.get("width", 0.0), r.get("height", 0.0))
+        elif bt == "star_row":
+            for r in b.get("stars", []) or []:
+                upd_rect(r.get("x", 0.0), r.get("y", 0.0), r.get("width", 0.0), r.get("height", 0.0))
+        else:
+            r = b.get("rect") or {}
+            if r:
+                upd_rect(r.get("x", 0.0), r.get("y", 0.0), r.get("width", 0.0), r.get("height", 0.0))
+
+    return max(432.0, max_x), max(648.0, max_y)
+
 def render_thumbnail(
     elements: List[Dict[str, Any]],
     blocks: List[Dict[str, Any]],
@@ -55,13 +104,65 @@ def render_thumbnail(
     }
 
     for block in blocks:
-        color = block_colors.get(block.get("type"), (150, 150, 150))
-        if block.get("type") == "labeled_line":
+        btype = block.get("type")
+        color = block_colors.get(btype, (150, 150, 150))
+        if btype == "labeled_line":
             line = block.get("line", {})
             x1 = line.get("x", 0) * scale_x
             y1 = line.get("y", 0) * scale_y
             x2 = (line.get("x", 0) + line.get("width", 0)) * scale_x
             draw.line([(x1, y1), (x2, y1)], fill=color, width=2)
+        elif btype == "grid":
+            # Draw bounds
+            bd = block.get("bounds") or {}
+            if bd:
+                x = bd.get("x", 0) * scale_x
+                y = bd.get("y", 0) * scale_y
+                w = bd.get("width", 0) * scale_x
+                h = bd.get("height", 0) * scale_y
+                draw.rectangle([x, y, x + w, y + h], outline=color, width=2)
+            # Draw internal lines if present
+            for hl in block.get("lines_h", []) or []:
+                xh = hl.get("x", 0) * scale_x
+                yh = hl.get("y", 0) * scale_y
+                wh = hl.get("width", 0) * scale_x
+                draw.line([(xh, yh), (xh + wh, yh)], fill=color, width=1)
+            for vl in block.get("lines_v", []) or []:
+                xv = vl.get("x", 0) * scale_x
+                yv = vl.get("y", 0) * scale_y
+                hv = vl.get("height", 0) * scale_y
+                draw.line([(xv, yv), (xv, yv + hv)], fill=color, width=1)
+        elif btype == "weekly_row":
+            for r in block.get("rects", []) or []:
+                x = r.get("x", 0) * scale_x
+                y = r.get("y", 0) * scale_y
+                w = r.get("width", 0) * scale_x
+                h = r.get("height", 0) * scale_y
+                draw.rectangle([x, y, x + w, y + h], outline=color, width=1)
+        elif btype == "checkbox_list":
+            for item in block.get("items", []) or []:
+                r = item.get("rect") or {}
+                if r:
+                    x = r.get("x", 0) * scale_x
+                    y = r.get("y", 0) * scale_y
+                    w = r.get("width", 0) * scale_x
+                    h = r.get("height", 0) * scale_y
+                    draw.rectangle([x, y, x + w, y + h], outline=color, width=1)
+        elif btype == "star_row":
+            for r in block.get("stars", []) or []:
+                x = r.get("x", 0) * scale_x
+                y = r.get("y", 0) * scale_y
+                w = r.get("width", 0) * scale_x
+                h = r.get("height", 0) * scale_y
+                draw.rectangle([x, y, x + w, y + h], outline=color, width=1)
+        elif btype == "header":
+            t = block.get("text") or {}
+            if t:
+                x = t.get("x", 0) * scale_x
+                y = t.get("y", 0) * scale_y
+                w = t.get("width", 0) * scale_x
+                h = t.get("height", 0) * scale_y
+                draw.rectangle([x, y, x + w, y + h], outline=color, width=1)
         else:
             rect = block.get("rect", {})
             if rect:
@@ -69,7 +170,7 @@ def render_thumbnail(
                 y = rect.get("y", 0) * scale_y
                 w = rect.get("width", 0) * scale_x
                 h = rect.get("height", 0) * scale_y
-                draw.rectangle([x, y, x + w, y + h], outline=color, width=2)
+                draw.rectangle([x, y, x + w, y + h], outline=color, width=1)
 
     # Draw raw elements (light gray)
     for el in elements:
@@ -86,6 +187,12 @@ def render_thumbnail(
             x2 = (el.get("x", 0) + el.get("width", 0)) * scale_x
             y2 = (el.get("y", 0) + el.get("height", 0)) * scale_y
             draw.line([(x1, y1), (x2, y2)], fill=(200, 200, 200), width=1)
+        elif el_type == "text":
+            x = el.get("x", 0) * scale_x
+            y = el.get("y", 0) * scale_y
+            w = el.get("width", 0) * scale_x
+            h = el.get("height", 0) * scale_y
+            draw.rectangle([x, y, x + w, y + h], outline=(180, 180, 180), width=1)
 
     buf = io.BytesIO()
     img.save(buf, format="PNG")
@@ -114,7 +221,23 @@ def generate_thumbnail_for_pattern(pattern_id: str) -> bool:
         return False
 
     try:
-        png_bytes = render_thumbnail(elements, blocks)
+        # Try to read page dimensions from analysis JSON if available
+        pattern_dir = Path("./data/patterns") / pattern_id
+        page_w, page_h = 432.0, 648.0
+        try:
+            page1 = pattern_dir / "analysis" / "page_1.json"
+            if page1.exists():
+                meta = __import__("json").loads(page1.read_text())
+                page_w = float(meta.get("width", page_w))
+                page_h = float(meta.get("height", page_h))
+        except Exception:
+            pass
+        # Fallback: estimate from extracted elements/blocks
+        if page_w == 432.0 and page_h == 648.0:
+            est_w, est_h = _estimate_page_size(elements, blocks)
+            page_w, page_h = est_w, est_h
+
+        png_bytes = render_thumbnail(elements, blocks, page_width=page_w, page_height=page_h)
         pattern_dir = Path("./data/patterns") / pattern_id
         pattern_dir.mkdir(parents=True, exist_ok=True)
         (pattern_dir / "thumbnail.png").write_bytes(png_bytes)

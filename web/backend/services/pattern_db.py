@@ -246,14 +246,20 @@ class PatternDatabase:
         if not vec:
             return None
         pattern_dir = Path("./data/patterns") / pattern_id
+        extracted_dir = pattern_dir / "extracted"
         result = {"id": vec["id"], "description": vec["description"], "metadata": vec["metadata"]}
         try:
-            if (pattern_dir / "blocks.json").exists():
-                result["blocks"] = json.loads((pattern_dir / "blocks.json").read_text())["blocks"]
-            if (pattern_dir / "elements.json").exists():
-                result["elements"] = json.loads((pattern_dir / "elements.json").read_text())["elements"]
-            if (pattern_dir / "style_tokens.json").exists():
-                result["style_tokens"] = json.loads((pattern_dir / "style_tokens.json").read_text())
+            # Prefer files in extracted/ if present
+            blocks_path = (extracted_dir / "blocks.json") if (extracted_dir / "blocks.json").exists() else (pattern_dir / "blocks.json")
+            elements_path = (extracted_dir / "elements.json") if (extracted_dir / "elements.json").exists() else (pattern_dir / "elements.json")
+            style_path = (extracted_dir / "style_tokens.json") if (extracted_dir / "style_tokens.json").exists() else (pattern_dir / "style_tokens.json")
+
+            if blocks_path.exists():
+                result["blocks"] = json.loads(blocks_path.read_text())["blocks"]
+            if elements_path.exists():
+                result["elements"] = json.loads(elements_path.read_text())["elements"]
+            if style_path.exists():
+                result["style_tokens"] = json.loads(style_path.read_text())
         except Exception as e:
             print(f"⚠️  Failed to load extracted files for {pattern_id}: {e}")
         return result
@@ -318,20 +324,23 @@ class PatternDatabase:
         for v in vecs:
             summary = {"id": v["id"], "description": v["description"], "metadata": v["metadata"]}
             pattern_dir = Path("./data/patterns") / v["id"]
+            extracted_dir = pattern_dir / "extracted"
             try:
-                if (pattern_dir / "blocks.json").exists():
-                    blocks = json.loads((pattern_dir / "blocks.json").read_text())["blocks"]
+                blocks_path = (extracted_dir / "blocks.json") if (extracted_dir / "blocks.json").exists() else (pattern_dir / "blocks.json")
+                elements_path = (extracted_dir / "elements.json") if (extracted_dir / "elements.json").exists() else (pattern_dir / "elements.json")
+                if blocks_path.exists():
+                    blocks = json.loads(blocks_path.read_text())["blocks"]
                     summary["blocks_summary"] = {
                         "count": len(blocks),
                         "types": list({b.get("type") for b in blocks})
                     }
-                if (pattern_dir / "elements.json").exists():
-                    elements = json.loads((pattern_dir / "elements.json").read_text())["elements"]
+                if elements_path.exists():
+                    elements = json.loads(elements_path.read_text())["elements"]
                     summary["elements_summary"] = {
                         "count": len(elements),
                         "types": list({e.get("type") for e in elements})
                     }
-                if (pattern_dir / "style_tokens.json").exists():
+                if (extracted_dir / "style_tokens.json").exists() or (pattern_dir / "style_tokens.json").exists():
                     summary["has_style_tokens"] = True
             except Exception as e:
                 print(f"⚠️  Failed to summarize extracted files for {v['id']}: {e}")
