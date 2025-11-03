@@ -15,9 +15,11 @@ python-multipart==0.0.6
 # AI dependencies
 chromadb==0.4.24
 ollama==0.1.6
-ultralytics
+ultralytics>=8.0.0
+sahi>=0.3.0
+huggingface_hub>=0.20.0
 
 # Utilities
 python-dotenv==1.0.0
-Pillow
+Pillow>=9.0.0
 requests

@@ -46,7 +46,15 @@ def _merge_lines_cv(page_png_path: Path, dpi_scale: float = 1.0) -> Tuple[List[D
     closed_v = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel_v)
     # HoughLinesP
     def _lines_from_image(closed_img, orientation):
-        lines = cv2.HoughLinesP(closed_img, rho=1, theta=np.pi/180 if orientation == 'h' else np.pi/2, threshold=30, minLineLength=int(40 * dpi_scale), maxLineGap=int(12 * dpi_scale))
+        # Use a consistent theta step; filter orientation by slope
+        lines = cv2.HoughLinesP(
+            closed_img,
+            rho=1,
+            theta=np.pi/180,
+            threshold=30,
+            minLineLength=int(40 * dpi_scale),
+            maxLineGap=int(12 * dpi_scale),
+        )
         if lines is None:
             return []
         result = []
@@ -130,6 +138,30 @@ def _find_header(texts: List[Dict[str, Any]], page_h: float) -> Dict[str, Any] |
         return None
     header = max(candidates, key=lambda t: (t.get("width", 0), -t.get("y", 0)))
     return header
+
+def _find_header_group(texts: List[Dict[str, Any]], page_w: float, page_h: float) -> Dict[str, Any] | None:
+    """Fallback header by grouping multiple text spans near the top and returning their union as a header box."""
+    tops = [t for t in texts if t.get("y", 0) < page_h * 0.3]
+    if not tops:
+        return None
+    # cluster by baseline y
+    clusters = _group_by_y(tops, tol=24)
+    best = []
+    best_cov = 0.0
+    for cl in clusters:
+        min_x = min(t.get("x", 0) for t in cl)
+        max_x = max(t.get("x", 0) + t.get("width", 0) for t in cl)
+        width = max(0.0, max_x - min_x)
+        cov = width / max(1.0, page_w)
+        if cov > best_cov:
+            best_cov = cov; best = cl
+    if not best or best_cov < 0.25:
+        return None
+    x0 = min(t.get("x", 0) for t in best)
+    y0 = min(t.get("y", 0) for t in best)
+    x1 = max(t.get("x", 0) + t.get("width", 0) for t in best)
+    y1 = max(t.get("y", 0) + t.get("height", 0) for t in best)
+    return {"type": "text", "x": float(x0), "y": float(y0), "width": float(x1 - x0), "height": float(y1 - y0), "properties": {}}
 
 
 def _median(vals: List[float]) -> float:
@@ -266,6 +298,65 @@ def _find_grids(rects: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             })
     return blocks
 
+
+def _infer_grid_from_parallel_lines(lines: List[Dict[str, Any]], page_w: float, page_h: float) -> List[Dict[str, Any]]:
+    """Infer a grid from many parallel horizontal lines with similar x and width, even if verticals are missing."""
+    if not lines:
+        return []
+    # Filter horizontal line elements
+    hs = []
+    for l in lines:
+        w = float(l.get("width", 0))
+        h = float(l.get("height", 0))
+        if w > 20 and abs(h) < 1e-3:
+            hs.append(l)
+    if len(hs) < 8:
+        return []
+    # Cluster by left x and width
+    def q(v, q=5.0):
+        return int(round(float(v) / q) * q)
+    clusters = {}
+    for l in hs:
+        key = (q(l.get("x", 0), 5.0), q(l.get("width", 0), 10.0))
+        clusters.setdefault(key, []).append(l)
+    # pick the largest cluster
+    best_key = None
+    best = []
+    for k, v in clusters.items():
+        if len(v) > len(best):
+            best = v; best_key = k
+    if len(best) < 8:
+        return []
+    xs = [b.get("x", 0) for b in best]
+    ys = [b.get("y", 0) for b in best]
+    ws = [b.get("width", 0) for b in best]
+    min_x = min(xs); max_x = max([x + w for x, w in zip(xs, ws)])
+    min_y = min(ys); max_y = max(ys)
+    # Validate coverage and aspect
+    if max_y - min_y < 60 or (max_x - min_x) < page_w * 0.2:
+        return []
+    lines_h = [{"type": "line", "x": b.get("x", 0), "y": b.get("y", 0), "width": b.get("width", 0), "height": 0.0, "properties": {}} for b in best]
+    grid = {
+        "type": "grid",
+        "bounds": {"x": float(min_x), "y": float(min_y), "width": float(max_x - min_x), "height": float(max_y - min_y)},
+        "lines_h": lines_h,
+        "lines_v": [],
+        "source": "inferred_h_lines",
+    }
+    return [grid]
+
+
+def _thin_rects_to_lines(rects: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Convert very thin rectangles to horizontal/vertical line primitives."""
+    hs: List[Dict[str, Any]] = []
+    vs: List[Dict[str, Any]] = []
+    for r in rects or []:
+        w = float(r.get("width", 0)); h = float(r.get("height", 0)); x = float(r.get("x", 0)); y = float(r.get("y", 0))
+        if w >= 80 and h > 0 and h <= 3:
+            hs.append({"type": "line", "x": x, "y": y + h / 2.0, "width": w, "height": 0.0, "properties": {}})
+        elif h >= 80 and w > 0 and w <= 3:
+            vs.append({"type": "line", "x": x + w / 2.0, "y": y, "width": 0.0, "height": h, "properties": {}})
+    return hs, vs
 
 def _find_grids_from_lines(lines: List[Dict[str, Any]], page_w: float, page_h: float) -> List[Dict[str, Any]]:
     """Detect table-like grids from stroke lines (horizontal/vertical).
@@ -493,6 +584,71 @@ def _find_labeled_lines(rects: List[Dict[str, Any]], lines: List[Dict[str, Any]]
     return results
 
 
+def _find_labeled_inputs(rects: List[Dict[str, Any]], texts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Detect input rectangles with a label to the left or above (e.g., MONTH:, YEAR:, CLASS:)."""
+    blocks: List[Dict[str, Any]] = []
+    candidates = [r for r in rects if r.get("width", 0) >= 40 and 10 <= r.get("height", 0) <= 40]
+    for r in candidates:
+        rx, ry, rw, rh = r.get("x", 0), r.get("y", 0), r.get("width", 0), r.get("height", 0)
+        best = None
+        best_score = 1e9
+        # prefer label to the left, otherwise above
+        for t in texts:
+            tx = t.get("x", 0); ty = t.get("y", 0); tw = t.get("width", 0); th = t.get("height", 0)
+            # left-label: vertically aligned, immediately left within 140px
+            if (ry - th <= ty <= ry + rh) and (0 < rx - (tx + tw) <= 140):
+                score = (rx - (tx + tw)) + abs((ty + th/2) - (ry + rh/2))
+                if score < best_score:
+                    best = t; best_score = score
+            # above-label: centered horizontally and above within 100px
+            if (tx <= rx + rw/2 <= tx + tw) and (0 < ry - (ty + th) <= 100):
+                score = (ry - (ty + th))
+                if score < best_score:
+                    best = t; best_score = score
+        if best:
+            blocks.append({"type": "labeled_input", "rect": r, "label": best})
+    return blocks
+
+
+def _attach_grid_headers(grid: Dict[str, Any], texts: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Attach column header text spans to a grid using vertical lines when available."""
+    bounds = grid.get("bounds", {}) or {}
+    x = bounds.get("x", 0.0); y = bounds.get("y", 0.0); w = bounds.get("width", 0.0); h = bounds.get("height", 0.0)
+    if not w or not h:
+        return grid
+    # Build column spans from vertical lines if present, else try to split equally using known thin-rect verticals
+    cols: List[Tuple[float, float]] = []
+    vlines = grid.get("lines_v", []) or []
+    if vlines and len(vlines) >= 2:
+        xs = sorted([vl.get("x", x) for vl in vlines])
+        # add grid left/right edges as boundaries if needed
+        if xs[0] > x + 2: xs = [x] + xs
+        if xs[-1] < x + w - 2: xs = xs + [x + w]
+        for i in range(len(xs) - 1):
+            cols.append((xs[i], xs[i + 1]))
+    else:
+        # fallback: 5 equal columns (common for expenses table)
+        N = 5
+        step = w / N if N else 0
+        for i in range(N):
+            cols.append((x + i * step, x + (i + 1) * step))
+    # Header band near grid top
+    band_top = y - 28
+    band_bottom = y + 22
+    headers: List[Dict[str, Any]] = []
+    for t in texts or []:
+        tx = t.get("x", 0); ty = t.get("y", 0); tw = t.get("width", 0); th = t.get("height", 0)
+        if ty + th < band_top or ty > band_bottom:
+            continue
+        cx = tx + tw / 2
+        for (c0, c1) in cols:
+            if c0 <= cx <= c1:
+                headers.append(t); break
+    if headers:
+        grid = dict(grid)
+        grid["column_headers"] = headers
+    return grid
+
 def _find_star_rows(rects: List[Dict[str, Any]], texts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Detect 5 near-identical small shapes (stars) in a row with even spacing."""
     # stars often ~ 18-36 square-ish
@@ -563,6 +719,37 @@ def _flatten_blocks_to_elements(blocks: List[Dict[str, Any]]) -> List[Dict[str, 
                 tt["properties"].setdefault("fontSize", 14)
                 tt["properties"].setdefault("color", "#2C2C2C")
                 elements.append(tt)
+        elif b.get("type") == "labeled_input":
+            # add label text and input rectangle
+            lbl_text = b.get("label_text", "")
+            r = b.get("rect")
+            if r:
+                rr = r.copy()
+                rr["properties"] = {"fill": "transparent", "stroke": "#CCCCCC", "strokeWidth": 0.5}
+                elements.append(rr)
+            if lbl_text:
+                # create a text element near the rect (left or above)
+                x = r.get("x", 0) if r else 0
+                y = r.get("y", 0) if r else 0
+                w = r.get("width", 0) if r else 0
+                h = r.get("height", 0) if r else 0
+                # try to place label to the left
+                txt_elem = {"type": "text", "x": max(0, x - 80), "y": y + h / 2, "width": 70, "height": h, "properties": {"text": lbl_text, "fontFamily": "Helvetica", "fontSize": 14, "color": "#2C2C2C"}}
+                elements.append(txt_elem)
+        elif b.get("type") == "grid":
+            # render grid bounds and optional column headers
+            bounds = b.get("bounds", {})
+            if bounds:
+                grid_rect = {"type": "rectangle", "x": bounds.get("x", 0), "y": bounds.get("y", 0), "width": bounds.get("width", 0), "height": bounds.get("height", 0), "properties": {"fill": "transparent", "stroke": "#CCCCCC", "strokeWidth": 0.5}}
+                elements.append(grid_rect)
+            # column headers as text
+            for hdr in b.get("column_headers", []):
+                txt = hdr.copy()
+                txt["properties"] = txt.get("properties", {})
+                txt["properties"].setdefault("fontFamily", "Helvetica")
+                txt["properties"].setdefault("fontSize", 14)
+                txt["properties"].setdefault("color", "#2C2C2C")
+                elements.append(txt)
         elif b.get("type") == "checkbox_list":
             for item in b.get("items", []):
                 r = item.get("rect")
@@ -600,13 +787,14 @@ def _flatten_blocks_to_elements(blocks: List[Dict[str, Any]]) -> List[Dict[str, 
     return elements
 
 
-def extract_blocks(pattern_dir: Path, ai_detect: bool = False) -> Dict[str, Any]:
+def extract_blocks(pattern_dir: Path, ai_detect: bool = False, ai_model: str = "doclayout", imgsz: int = 1280, tile_size: int = 640, tile_overlap: int = 100) -> Dict[str, Any]:
     analysis_dir = pattern_dir / "analysis"
     pages = _load_pages(analysis_dir)
     if not pages:
         return {"success": False, "error": "no analysis pages found"}
 
     all_blocks: List[Dict[str, Any]] = []
+    pages_data: List[Dict[str, Any]] = []
 
     for page in pages:
         page_w = float(page.get("width", 0))
@@ -615,6 +803,9 @@ def extract_blocks(pattern_dir: Path, ai_detect: bool = False) -> Dict[str, Any]
         texts = [e for e in elems if e.get("type") == "text"]
         rects = [e for e in elems if e.get("type") == "rectangle"]
         lines = [e for e in elems if e.get("type") == "line"]
+        # derive line primitives from thin rectangles
+        thin_h, thin_v = _thin_rects_to_lines(rects)
+        lines_for_grid = (lines or []) + thin_h + thin_v
 
         # CV line merging and contour detection if PNG available
         page_png_path = analysis_dir / f"page_{page.get('page_index', 0)+1}.png"
@@ -630,12 +821,12 @@ def extract_blocks(pattern_dir: Path, ai_detect: bool = False) -> Dict[str, Any]
             if ai_detect:
                 try:
                     from web.backend.services.ai_vision import detect, save_detections
-                    ai_detections_page = detect(page_png_path, conf_threshold=0.01)
+                    ai_detections_page = detect(page_png_path, conf_threshold=0.01, ai_model=ai_model, imgsz=imgsz, tile_size=tile_size, tile_overlap=tile_overlap)
                 except Exception as e:
                     print(f"⚠️ AI vision failed for {page_png_path.name}: {e}")
                     ai_detections_page = []
 
-        header = _find_header(texts, page_h)
+        header = _find_header(texts, page_h) or _find_header_group(texts, page_w, page_h)
         if header:
             all_blocks.append({"type": "header", "text": header, "page": page.get("page_index", 0)})
 
@@ -650,17 +841,39 @@ def extract_blocks(pattern_dir: Path, ai_detect: bool = False) -> Dict[str, Any]
             all_blocks.append(g)
 
         # Grids from stroke lines (tables)
-        grids2 = _find_grids_from_lines(lines, page_w, page_h)
+        grids2 = _find_grids_from_lines(lines_for_grid, page_w, page_h)
         for g2 in grids2:
+            g2 = _attach_grid_headers(g2, texts)
             g2["page"] = page.get("page_index", 0)
             all_blocks.append(g2)
+
+        # Record per-page data for later fusion
+        pages_data.append({
+            "page_index": int(page.get("page_index", 0)),
+            "page_w": page_w,
+            "page_h": page_h,
+            "texts": texts,
+            "merged_h": merged_h,
+            "merged_v": merged_v,
+            "ai": ai_detections_page,
+        })
 
         # Grids from CV-merged lines (more robust)
         if merged_h or merged_v:
             grids3 = _find_grids_from_merged_lines(merged_h, merged_v, page_w, page_h)
             for g3 in grids3:
+                g3 = _attach_grid_headers(g3, texts)
                 g3["page"] = page.get("page_index", 0)
                 all_blocks.append(g3)
+
+        # Fallback: infer grid from many parallel horizontals when verticals are missing
+        has_grid_page = any(b.get("type") == "grid" and int(b.get("page", 0)) == int(page.get("page_index", 0)) for b in all_blocks)
+        if not has_grid_page:
+            inferred_grids = _infer_grid_from_parallel_lines(lines_for_grid, page_w, page_h)
+            for ig in inferred_grids:
+                ig = _attach_grid_headers(ig, texts)
+                ig["page"] = page.get("page_index", 0)
+                all_blocks.append(ig)
 
         note_blocks = _find_notes(rects, texts)
         for nb in note_blocks:
@@ -680,6 +893,12 @@ def extract_blocks(pattern_dir: Path, ai_detect: bool = False) -> Dict[str, Any]
                 cb["page"] = page.get("page_index", 0)
                 all_blocks.append(cb)
 
+        # Labeled inputs (MONTH, YEAR, CLASS, etc.)
+        li_blocks = _find_labeled_inputs(rects, texts)
+        for li in li_blocks:
+            li["page"] = page.get("page_index", 0)
+            all_blocks.append(li)
+
         # Labeled lines
         ll_blocks = _find_labeled_lines(rects, lines, texts)
         for lb in ll_blocks:
@@ -692,94 +911,91 @@ def extract_blocks(pattern_dir: Path, ai_detect: bool = False) -> Dict[str, Any]
             sb["page"] = page.get("page_index", 0)
             all_blocks.append(sb)
 
-    # Expanded fusion with AI detections if enabled
+    # Expanded fusion with AI detections if enabled (per page)
     fused_blocks = all_blocks[:]
     ai_detections_all: List[Dict[str, Any]] = []
     if ai_detect:
-        # For now, just collect AI detections; fusion can be expanded later
-        ai_detections_all = ai_detections_page  # TODO: aggregate per page if multi-page
-
         # Helper: dedupe overlapping boxes (IoU > 0.6)
         def dedupe_boxes(boxes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-            keep = []
+            keep: List[Dict[str, Any]] = []
             for b in boxes:
-                if not any(_iou(b["bbox"], k["bbox"]) > 0.6 for k in keep):
+                if not any(_iou(b.get("bbox", {}), k.get("bbox", {})) > 0.6 for k in keep):
                     keep.append(b)
             return keep
 
-        ai_tables = [d for d in ai_detections_all if d.get("class") == "table"]
-        ai_checkboxes = [d for d in ai_detections_all if d.get("class") == "checkbox"]
-        ai_text_regions = [d for d in ai_detections_all if d.get("class") == "text_region"]
-        ai_shapes = [d for d in ai_detections_all if d.get("class") == "shape"]
-
-        # 1) Fuse AI tables with CV merged lines to improve grid recall
-        if ai_tables or (merged_h and merged_v):
-            # Start with CV merged-lines grids
-            cv_grids = _find_grids_from_merged_lines(merged_h, merged_v, page_w, page_h)
-            # Add AI table bounds as grids if they don't overlap too much
-            for d in dedupe_boxes(ai_tables):
-                bbox = d.get("bbox", {})
-                # Ensure bbox is not too small/large
-                if bbox.get("width", 0) < 30 or bbox.get("height", 0) < 30:
+        # Helper: convert AI detections to blocks/elements
+        def ai_to_blocks(dets: List[Dict[str, Any]], page_idx: int, page_w: float, page_h: float, texts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+            blocks: List[Dict[str, Any]] = []
+            if not dets:
+                return blocks
+            # Group detections by class
+            by_class: Dict[str, List[Dict[str, Any]]] = {}
+            for d in dets:
+                by_class.setdefault(d.get("class", "shape"), []).append(d)
+            # Tables: use AI bbox as grid bounds, then intersect with CV lines
+            for t in by_class.get("table", []):
+                bbox = t.get("bbox", {})
+                if bbox.get("width", 0) < 120 or bbox.get("height", 0) < 80:
                     continue
-                # Avoid high overlap with existing CV grids
-                if any(_iou(bbox, g.get("bounds", {})) > 0.5 for g in cv_grids):
-                    continue
-                fused_grid = {
+                grid = {
                     "type": "grid",
                     "bounds": bbox,
+                    "rows": None,
+                    "cols": None,
                     "source": "ai_table",
-                    "lines_h": [],  # Could be enriched by intersecting CV lines
-                    "lines_v": [],
+                    "page": page_idx,
                 }
-                fused_blocks.append(fused_grid)
-            # Add CV grids
-            for g in cv_grids:
-                g["source"] = "cv_merged"
-                fused_blocks.append(g)
+                # Attach column headers from nearby texts
+                grid = _attach_grid_headers(grid, texts)
+                blocks.append(grid)
+            # Text regions: treat as headers if near top, otherwise generic text_region
+            for tr in by_class.get("text_region", []):
+                bbox = tr.get("bbox", {})
+                if bbox.get("y", 0) < page_h * 0.25 and bbox.get("width", 0) > page_w * 0.3:
+                    blocks.append({"type": "header", "text": {"type": "text", **bbox, "properties": {}}, "source": "ai_text_region", "page": page_idx})
+                else:
+                    blocks.append({"type": "text_region", "rect": {"type": "rectangle", **bbox, "properties": {}}, "source": "ai_text_region", "page": page_idx})
+            # Checkboxes: add as checkbox_list if grouped; else as individual checkboxes
+            cbs = by_class.get("checkbox", [])
+            if len(cbs) >= 4:
+                items = []
+                for cb in sorted(cbs, key=lambda d: d.get("bbox", {}).get("y", 0)):
+                    items.append({"rect": {"type": "rectangle", **cb.get("bbox", {}), "properties": {}}, "label": None})
+                blocks.append({"type": "checkbox_list", "items": items, "source": "ai_checkbox", "page": page_idx})
+            else:
+                for cb in cbs:
+                    blocks.append({"type": "checkbox", "rect": {"type": "rectangle", **cb.get("bbox", {}), "properties": {}}, "source": "ai_checkbox", "page": page_idx})
+            # Labeled inputs from VLM
+            for li in by_class.get("labeled_input", []):
+                bbox = li.get("bbox", {})
+                label_text = li.get("label", "")
+                blocks.append({"type": "labeled_input", "rect": {"type": "rectangle", **bbox, "properties": {}}, "label_text": label_text, "source": "ollama_vl", "page": page_idx})
+            # Generic shapes
+            for sh in by_class.get("shape", []):
+                bbox = sh.get("bbox", {})
+                if bbox.get("width", 0) < 20 or bbox.get("height", 0) < 20:
+                    continue
+                blocks.append({"type": "shape", "rect": {"type": "rectangle", **bbox, "properties": {}}, "source": "ai_shape", "page": page_idx})
+            return blocks
 
-        # 2) If no checkbox_list found, create from AI checkboxes (pair with nearest text)
-        has_checkbox_list = any(b.get("type") == "checkbox_list" for b in fused_blocks)
-        if not has_checkbox_list and ai_checkboxes:
-            cb_items = []
-            for d in dedupe_boxes(ai_checkboxes):
-                bbox = d.get("bbox", {})
-                bx, by, bw, bh = bbox.get("x", 0), bbox.get("y", 0), bbox.get("width", 0), bbox.get("height", 0)
-                best = None
-                best_dx = 1e9
-                for t in texts:
-                    tx = t.get("x", 0)
-                    ty = t.get("y", 0)
-                    th = t.get("height", 0)
-                    if abs((ty + th / 2) - (by + bh / 2)) <= max(20, bh):
-                        dx = tx - (bx + bw)
-                        if 4 <= dx <= 500 and dx < best_dx:
-                            best = t
-                            best_dx = dx
-                cb_items.append({"rect": {"type": "rectangle", "x": bx, "y": by, "width": bw, "height": bh, "properties": {}}, "label": best})
-            if len(cb_items) >= 4:
-                fused_blocks.append({"type": "checkbox_list", "items": cb_items, "source": "ai_fused"})
-
-        # 3) If no header found, use large AI text_region near top as header
-        has_header = any(b.get("type") == "header" for b in fused_blocks)
-        if not has_header and ai_text_regions:
-            for d in dedupe_boxes(ai_text_regions):
-                bbox = d.get("bbox", {})
-                if bbox.get("y", 0) > page_h * 0.4:
-                    continue  # not near top
-                if bbox.get("width", 0) < page_w * 0.2:
-                    continue  # too narrow
-                # Prefer widest
-                fused_blocks.append({"type": "header", "text": {"type": "text", **bbox, "properties": {}}, "source": "ai_text_region"})
-                break  # only one
-
-        # 4) Keep notable shapes as generic elements (optional)
-        for d in dedupe_boxes(ai_shapes):
-            bbox = d.get("bbox", {})
-            # Only keep reasonably large boxes
-            if bbox.get("width", 0) < 20 or bbox.get("height", 0) < 20:
-                continue
-            fused_blocks.append({"type": "shape", "rect": {"type": "rectangle", **bbox, "properties": {}}, "source": "ai_shape"})
+        # Per-page AI fusion
+        for pdata in pages_data:
+            page_idx = pdata["page_index"]
+            page_w = pdata["page_w"]
+            page_h = pdata["page_h"]
+            texts = pdata["texts"]
+            ai_page = pdata.get("ai", [])
+            if ai_page:
+                deduped = dedupe_boxes(ai_page)
+                ai_blocks = ai_to_blocks(deduped, page_idx, page_w, page_h, texts)
+                # Prefer vector/CV geometry; add AI as fallback/semantics
+                # Example: if no grid on this page, add AI grid
+                has_grid = any(b.get("type") == "grid" and int(b.get("page", 0)) == page_idx for b in fused_blocks)
+                for b in ai_blocks:
+                    if b.get("type") == "grid" and has_grid:
+                        continue  # keep CV grid
+                    fused_blocks.append(b)
+                ai_detections_all.extend([{"page": page_idx, **d} for d in deduped])
 
     # Save AI detections if any
     if ai_detect and ai_detections_all:

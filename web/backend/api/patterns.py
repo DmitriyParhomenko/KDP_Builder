@@ -133,7 +133,14 @@ def get_analysis(pattern_id: str) -> Dict[str, Any]:
 
 
 @router.post("/{pattern_id}/extract")
-def extract_blocks(pattern_id: str, ai_detect: bool = Query(False)) -> Dict[str, Any]:
+async def extract_pattern_blocks(
+    pattern_id: str,
+    ai_detect: bool = Query(False, description="Enable AI vision detection"),
+    ai_model: str = Query("doclayout", description="AI model: doclayout, ollama_vl, both"),
+    imgsz: int = Query(1280, description="Inference image size for YOLO models"),
+    tile_size: int = Query(640, description="SAHI tile size for slicing inference"),
+    tile_overlap: int = Query(100, description="SAHI tile overlap"),
+) -> Dict[str, Any]:
     """Extract blocks from analyzed pages; optionally run AI vision detection."""
     pattern_dir = STORAGE_DIR / pattern_id
     if not pattern_dir.exists():
@@ -142,7 +149,7 @@ def extract_blocks(pattern_id: str, ai_detect: bool = Query(False)) -> Dict[str,
         from web.backend.services.block_extractor import extract_blocks as _extract
         from web.backend.services.ai_service import ai_service
         # Extract
-        result = _extract(pattern_dir, ai_detect=ai_detect)
+        result = _extract(pattern_dir, ai_detect=ai_detect, ai_model=ai_model, imgsz=imgsz, tile_size=tile_size, tile_overlap=tile_overlap)
         if not result.get("success"):
             raise HTTPException(status_code=500, detail=result.get("error", "extraction failed"))
         # Optional: store blocks+elements in pattern DB for RAG
