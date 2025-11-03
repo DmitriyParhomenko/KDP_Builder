@@ -1,0 +1,23 @@
+[
+  {
+    "pattern_id": "66a52d85-ab6b-4111-a72f-a025f0a87c5f",
+    "total_blocks": 20,
+    "ai_detections": 1,
+    "block_counts": {
+      "notes": 6,
+      "checkbox_list": 1,
+      "labeled_line": 12,
+      "star_row": 1
+    }
+  },
+  {
+    "pattern_id": "3a787eaf-a234-4fb2-810b-43de55f0baee",
+    "total_blocks": 27,
+    "ai_detections": 0,
+    "block_counts": {
+      "notes": 1,
+      "checkbox_list": 1,
+      "labeled_line": 25
+    }
+  }
+]

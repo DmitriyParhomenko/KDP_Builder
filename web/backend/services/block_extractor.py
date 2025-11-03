@@ -13,6 +13,20 @@ except ImportError:
 
 # Coordinate system expected: top-left (as produced by pdf_parser.analyze_pdf)
 
+def _iou(box_a: Dict[str, Any], box_b: Dict[str, Any]) -> float:
+    """Compute Intersection over Union for two boxes with x,y,w,h."""
+    x1 = max(box_a.get("x", 0), box_b.get("x", 0))
+    y1 = max(box_a.get("y", 0), box_b.get("y", 0))
+    x2 = min(box_a.get("x", 0) + box_a.get("width", 0), box_b.get("x", 0) + box_b.get("width", 0))
+    y2 = min(box_a.get("y", 0) + box_a.get("height", 0), box_b.get("y", 0) + box_b.get("height", 0))
+    inter_w = max(0, x2 - x1)
+    inter_h = max(0, y2 - y1)
+    inter = inter_w * inter_h
+    area_a = box_a.get("width", 0) * box_a.get("height", 0)
+    area_b = box_b.get("width", 0) * box_b.get("height", 0)
+    union = area_a + area_b - inter
+    return inter / union if union > 0 else 0.0
+
 def _merge_lines_cv(page_png_path: Path, dpi_scale: float = 1.0) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Use OpenCV to merge fragmented lines via morphological operations.
@@ -678,36 +692,94 @@ def extract_blocks(pattern_dir: Path, ai_detect: bool = False) -> Dict[str, Any]
             sb["page"] = page.get("page_index", 0)
             all_blocks.append(sb)
 
-    # Simple fusion with AI detections if enabled
+    # Expanded fusion with AI detections if enabled
     fused_blocks = all_blocks[:]
     ai_detections_all: List[Dict[str, Any]] = []
     if ai_detect:
         # For now, just collect AI detections; fusion can be expanded later
         ai_detections_all = ai_detections_page  # TODO: aggregate per page if multi-page
-        # Example simple fusion: add AI-detected checkboxes if no checkbox_list found
+
+        # Helper: dedupe overlapping boxes (IoU > 0.6)
+        def dedupe_boxes(boxes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+            keep = []
+            for b in boxes:
+                if not any(_iou(b["bbox"], k["bbox"]) > 0.6 for k in keep):
+                    keep.append(b)
+            return keep
+
+        ai_tables = [d for d in ai_detections_all if d.get("class") == "table"]
+        ai_checkboxes = [d for d in ai_detections_all if d.get("class") == "checkbox"]
+        ai_text_regions = [d for d in ai_detections_all if d.get("class") == "text_region"]
+        ai_shapes = [d for d in ai_detections_all if d.get("class") == "shape"]
+
+        # 1) Fuse AI tables with CV merged lines to improve grid recall
+        if ai_tables or (merged_h and merged_v):
+            # Start with CV merged-lines grids
+            cv_grids = _find_grids_from_merged_lines(merged_h, merged_v, page_w, page_h)
+            # Add AI table bounds as grids if they don't overlap too much
+            for d in dedupe_boxes(ai_tables):
+                bbox = d.get("bbox", {})
+                # Ensure bbox is not too small/large
+                if bbox.get("width", 0) < 30 or bbox.get("height", 0) < 30:
+                    continue
+                # Avoid high overlap with existing CV grids
+                if any(_iou(bbox, g.get("bounds", {})) > 0.5 for g in cv_grids):
+                    continue
+                fused_grid = {
+                    "type": "grid",
+                    "bounds": bbox,
+                    "source": "ai_table",
+                    "lines_h": [],  # Could be enriched by intersecting CV lines
+                    "lines_v": [],
+                }
+                fused_blocks.append(fused_grid)
+            # Add CV grids
+            for g in cv_grids:
+                g["source"] = "cv_merged"
+                fused_blocks.append(g)
+
+        # 2) If no checkbox_list found, create from AI checkboxes (pair with nearest text)
         has_checkbox_list = any(b.get("type") == "checkbox_list" for b in fused_blocks)
-        if not has_checkbox_list:
-            ai_checkboxes = [d for d in ai_detections_all if d.get("class") == "checkbox"]
-            if ai_checkboxes:
-                # Pair with nearest text to the right
-                cb_items = []
-                for d in ai_checkboxes:
-                    bbox = d.get("bbox", {})
-                    bx, by, bw, bh = bbox.get("x", 0), bbox.get("y", 0), bbox.get("width", 0), bbox.get("height", 0)
-                    best = None
-                    best_dx = 1e9
-                    for t in texts:
-                        tx = t.get("x", 0)
-                        ty = t.get("y", 0)
-                        th = t.get("height", 0)
-                        if abs((ty + th / 2) - (by + bh / 2)) <= max(20, bh):
-                            dx = tx - (bx + bw)
-                            if 4 <= dx <= 500 and dx < best_dx:
-                                best = t
-                                best_dx = dx
-                    cb_items.append({"rect": {"type": "rectangle", "x": bx, "y": by, "width": bw, "height": bh, "properties": {}}, "label": best})
-                if len(cb_items) >= 4:
-                    fused_blocks.append({"type": "checkbox_list", "items": cb_items, "source": "ai_fused"})
+        if not has_checkbox_list and ai_checkboxes:
+            cb_items = []
+            for d in dedupe_boxes(ai_checkboxes):
+                bbox = d.get("bbox", {})
+                bx, by, bw, bh = bbox.get("x", 0), bbox.get("y", 0), bbox.get("width", 0), bbox.get("height", 0)
+                best = None
+                best_dx = 1e9
+                for t in texts:
+                    tx = t.get("x", 0)
+                    ty = t.get("y", 0)
+                    th = t.get("height", 0)
+                    if abs((ty + th / 2) - (by + bh / 2)) <= max(20, bh):
+                        dx = tx - (bx + bw)
+                        if 4 <= dx <= 500 and dx < best_dx:
+                            best = t
+                            best_dx = dx
+                cb_items.append({"rect": {"type": "rectangle", "x": bx, "y": by, "width": bw, "height": bh, "properties": {}}, "label": best})
+            if len(cb_items) >= 4:
+                fused_blocks.append({"type": "checkbox_list", "items": cb_items, "source": "ai_fused"})
+
+        # 3) If no header found, use large AI text_region near top as header
+        has_header = any(b.get("type") == "header" for b in fused_blocks)
+        if not has_header and ai_text_regions:
+            for d in dedupe_boxes(ai_text_regions):
+                bbox = d.get("bbox", {})
+                if bbox.get("y", 0) > page_h * 0.4:
+                    continue  # not near top
+                if bbox.get("width", 0) < page_w * 0.2:
+                    continue  # too narrow
+                # Prefer widest
+                fused_blocks.append({"type": "header", "text": {"type": "text", **bbox, "properties": {}}, "source": "ai_text_region"})
+                break  # only one
+
+        # 4) Keep notable shapes as generic elements (optional)
+        for d in dedupe_boxes(ai_shapes):
+            bbox = d.get("bbox", {})
+            # Only keep reasonably large boxes
+            if bbox.get("width", 0) < 20 or bbox.get("height", 0) < 20:
+                continue
+            fused_blocks.append({"type": "shape", "rect": {"type": "rectangle", **bbox, "properties": {}}, "source": "ai_shape"})
 
     # Save AI detections if any
     if ai_detect and ai_detections_all:
