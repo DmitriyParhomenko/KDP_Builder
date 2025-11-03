@@ -15,6 +15,7 @@ python-multipart==0.0.6
 # AI dependencies
 chromadb==0.4.24
 ollama==0.1.6
+ultralytics
 
 # Utilities
 python-dotenv==1.0.0

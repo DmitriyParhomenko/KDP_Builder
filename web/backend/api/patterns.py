@@ -133,8 +133,8 @@ def get_analysis(pattern_id: str) -> Dict[str, Any]:
 
 
 @router.post("/{pattern_id}/extract")
-def extract_blocks(pattern_id: str) -> Dict[str, Any]:
-    """Extract blocks from analyzed pages"""
+def extract_blocks(pattern_id: str, ai_detect: bool = Query(False)) -> Dict[str, Any]:
+    """Extract blocks from analyzed pages; optionally run AI vision detection."""
     pattern_dir = STORAGE_DIR / pattern_id
     if not pattern_dir.exists():
         raise HTTPException(status_code=404, detail="pattern not found")
@@ -142,7 +142,7 @@ def extract_blocks(pattern_id: str) -> Dict[str, Any]:
         from web.backend.services.block_extractor import extract_blocks as _extract
         from web.backend.services.ai_service import ai_service
         # Extract
-        result = _extract(pattern_dir)
+        result = _extract(pattern_dir, ai_detect=ai_detect)
         if not result.get("success"):
             raise HTTPException(status_code=500, detail=result.get("error", "extraction failed"))
         # Optional: store blocks+elements in pattern DB for RAG
@@ -163,7 +163,7 @@ def extract_blocks(pattern_id: str) -> Dict[str, Any]:
             pattern_db.add_extracted_pattern(
                 pattern_id=pattern_id,
                 description=description,
-                metadata={"source": "extracted", "pattern_id": pattern_id},
+                metadata={"source": "extracted", "pattern_id": pattern_id, "ai_detect": ai_detect},
                 blocks=blocks,
                 elements=elements,
                 style_tokens=style_tokens

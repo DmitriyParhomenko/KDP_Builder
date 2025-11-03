@@ -586,7 +586,7 @@ def _flatten_blocks_to_elements(blocks: List[Dict[str, Any]]) -> List[Dict[str, 
     return elements
 
 
-def extract_blocks(pattern_dir: Path) -> Dict[str, Any]:
+def extract_blocks(pattern_dir: Path, ai_detect: bool = False) -> Dict[str, Any]:
     analysis_dir = pattern_dir / "analysis"
     pages = _load_pages(analysis_dir)
     if not pages:
@@ -606,11 +606,20 @@ def extract_blocks(pattern_dir: Path) -> Dict[str, Any]:
         page_png_path = analysis_dir / f"page_{page.get('page_index', 0)+1}.png"
         merged_h, merged_v = [], []
         contour_checkboxes = []
+        ai_detections_page = []
         if page_png_path.exists():
             # Estimate DPI scale from page size vs typical letter size (612x792)
             dpi_scale = max(page_w / 612.0, page_h / 792.0)
             merged_h, merged_v = _merge_lines_cv(page_png_path, dpi_scale)
             contour_checkboxes = _find_contour_checkboxes(page_png_path, dpi_scale)
+            # AI detection if requested
+            if ai_detect:
+                try:
+                    from web.backend.services.ai_vision import detect, save_detections
+                    ai_detections_page = detect(page_png_path, conf_threshold=0.01)
+                except Exception as e:
+                    print(f"⚠️ AI vision failed for {page_png_path.name}: {e}")
+                    ai_detections_page = []
 
         header = _find_header(texts, page_h)
         if header:
@@ -669,13 +678,54 @@ def extract_blocks(pattern_dir: Path) -> Dict[str, Any]:
             sb["page"] = page.get("page_index", 0)
             all_blocks.append(sb)
 
+    # Simple fusion with AI detections if enabled
+    fused_blocks = all_blocks[:]
+    ai_detections_all: List[Dict[str, Any]] = []
+    if ai_detect:
+        # For now, just collect AI detections; fusion can be expanded later
+        ai_detections_all = ai_detections_page  # TODO: aggregate per page if multi-page
+        # Example simple fusion: add AI-detected checkboxes if no checkbox_list found
+        has_checkbox_list = any(b.get("type") == "checkbox_list" for b in fused_blocks)
+        if not has_checkbox_list:
+            ai_checkboxes = [d for d in ai_detections_all if d.get("class") == "checkbox"]
+            if ai_checkboxes:
+                # Pair with nearest text to the right
+                cb_items = []
+                for d in ai_checkboxes:
+                    bbox = d.get("bbox", {})
+                    bx, by, bw, bh = bbox.get("x", 0), bbox.get("y", 0), bbox.get("width", 0), bbox.get("height", 0)
+                    best = None
+                    best_dx = 1e9
+                    for t in texts:
+                        tx = t.get("x", 0)
+                        ty = t.get("y", 0)
+                        th = t.get("height", 0)
+                        if abs((ty + th / 2) - (by + bh / 2)) <= max(20, bh):
+                            dx = tx - (bx + bw)
+                            if 4 <= dx <= 500 and dx < best_dx:
+                                best = t
+                                best_dx = dx
+                    cb_items.append({"rect": {"type": "rectangle", "x": bx, "y": by, "width": bw, "height": bh, "properties": {}}, "label": best})
+                if len(cb_items) >= 4:
+                    fused_blocks.append({"type": "checkbox_list", "items": cb_items, "source": "ai_fused"})
+
+    # Save AI detections if any
+    if ai_detect and ai_detections_all:
+        extracted_dir = pattern_dir / "extracted"
+        extracted_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            from web.backend.services.ai_vision import save_detections
+            save_detections(ai_detections_all, extracted_dir / "ai_detections.json")
+        except Exception as e:
+            print(f"⚠️ Failed to save AI detections: {e}")
+
     # Flatten to normalized elements list as a starting point
-    elements = _flatten_blocks_to_elements(all_blocks)
+    elements = _flatten_blocks_to_elements(fused_blocks)
 
     # Write outputs
     out_dir = pattern_dir / "extracted"
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "blocks.json").write_text(json.dumps({"blocks": all_blocks}, ensure_ascii=False, indent=2), encoding="utf-8")
+    (out_dir / "blocks.json").write_text(json.dumps({"blocks": fused_blocks}, ensure_ascii=False, indent=2), encoding="utf-8")
     (out_dir / "elements.json").write_text(json.dumps({"elements": elements}, ensure_ascii=False, indent=2), encoding="utf-8")
 
     # Generate overlay PNGs for validation using Pillow if available
@@ -701,53 +751,36 @@ def extract_blocks(pattern_dir: Path) -> Dict[str, Any]:
                 elif b.get("type") == "grid":
                     color = (230, 126, 34)  # orange
                     bd = b.get("bounds", {})
-                    x, y, w, h = bd.get("x", 0), bd.get("y", 0), bd.get("width", 0), bd.get("height", 0)
-                    draw.rectangle([x, y, x + w, y + h], outline=color, width=3)
-                    # draw internal lines if provided (from stroke-based grid detection)
+                    if bd:
+                        x, y, w, h = bd.get("x", 0), bd.get("y", 0), bd.get("width", 0), bd.get("height", 0)
+                        draw.rectangle([x, y, x + w, y + h], outline=color, width=3)
                     for hl in b.get("lines_h", []):
                         xh, yh, wh = hl.get("x", 0), hl.get("y", 0), hl.get("width", 0)
                         draw.line([xh, yh, xh + wh, yh], fill=color, width=2)
                     for vl in b.get("lines_v", []):
                         xv, yv, hv = vl.get("x", 0), vl.get("y", 0), vl.get("height", 0)
                         draw.line([xv, yv, xv, yv + hv], fill=color, width=2)
-                    # distinguish CV-merged grids with a thicker border
                     if b.get("source") == "cv_merged":
                         draw.rectangle([x, y, x + w, y + h], outline=color, width=5)
-                elif b.get("type") == "notes":
-                    color = (142, 68, 173)  # purple
-                    r = b.get("rect")
-                    if r:
-                        x, y, w, h = r.get("x", 0), r.get("y", 0), r.get("width", 0), r.get("height", 0)
-                        draw.rectangle([x, y, x + w, y + h], outline=color, width=2)
                 elif b.get("type") == "header":
                     color = (52, 152, 219)  # blue
                     t = b.get("text")
                     if t:
                         x, y, w, h = t.get("x", 0), t.get("y", 0), t.get("width", 0), t.get("height", 0)
                         draw.rectangle([x, y, x + w, y + h], outline=color, width=2)
-                elif b.get("type") == "checkbox_list":
-                    color = (231, 76, 60)  # red
-                    for item in b.get("items", []):
-                        r = item.get("rect")
-                        if r:
-                            x, y, w, h = r.get("x", 0), r.get("y", 0), r.get("width", 0), r.get("height", 0)
-                            draw.rectangle([x, y, x + w, y + h], outline=color, width=2)
-                elif b.get("type") == "labeled_line":
-                    color = (39, 174, 96)  # green-dark
-                    ln = b.get("line")
-                    if ln:
-                        x, y, w = ln.get("x", 0), ln.get("y", 0), ln.get("width", 0)
-                        draw.line([x, y, x + w, y], fill=color, width=3)
-                    lab = b.get("label")
-                    if lab:
-                        lx, ly, lw, lh = lab.get("x", 0), lab.get("y", 0), lab.get("width", 0), lab.get("height", 0)
-                        draw.rectangle([lx, ly, lx + lw, ly + lh], outline=color, width=2)
                 elif b.get("type") == "star_row":
                     color = (241, 196, 15)  # yellow
                     for r in b.get("stars", []):
                         x, y, w, h = r.get("x", 0), r.get("y", 0), r.get("width", 0), r.get("height", 0)
                         draw.rectangle([x, y, x + w, y + h], outline=color, width=2)
-
+            # Draw AI detections in cyan
+            for d in ai_dets:
+                bbox = d.get("bbox", {})
+                x, y, w, h = bbox.get("x", 0), bbox.get("y", 0), bbox.get("width", 0), bbox.get("height", 0)
+                draw.rectangle([x, y, x + w, y + h], outline=(0, 255, 255), width=2)
+                # Optional: label
+                label = d.get("label", d.get("class", ""))
+                draw.text((x + 2, y + 2), f"{label} {d.get('conf', 0)}", fill=(0, 255, 255))
             # Draw all text spans to validate detection
             try:
                 text_elems = [e for e in page.get("elements", []) if e.get("type") == "text"]
@@ -756,7 +789,6 @@ def extract_blocks(pattern_dir: Path) -> Dict[str, Any]:
                     draw.rectangle([x, y, x + w, y + h], outline=(100, 100, 100), width=1)
             except Exception:
                 pass
-
             # Draw legend
             try:
                 legend_items = [
@@ -767,6 +799,7 @@ def extract_blocks(pattern_dir: Path) -> Dict[str, Any]:
                     ("Checkbox List", (231, 76, 60)),
                     ("Labeled Line", (39, 174, 96)),
                     ("Star Row", (241, 196, 15)),
+                    ("AI Detection", (0, 255, 255)),
                     ("Text Span", (100, 100, 100)),
                 ]
                 x0, y0 = 20, 20
@@ -776,9 +809,11 @@ def extract_blocks(pattern_dir: Path) -> Dict[str, Any]:
                     draw.text((x0 + 20, y), name, fill=(0, 0, 0))
             except Exception:
                 pass
+            out_dir = pattern_dir / "extracted"
+            out_dir.mkdir(parents=True, exist_ok=True)
             im.save(out_dir / f"preview_page_{i+1}.png")
     except Exception:
         # Pillow not installed or drawing failed; continue silently
         pass
 
-    return {"success": True, "blocks": all_blocks, "elements": elements}
+    return {"success": True, "blocks": fused_blocks, "elements": elements, "ai_detections": ai_detections_all}
