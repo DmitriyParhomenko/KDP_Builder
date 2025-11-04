@@ -11,6 +11,19 @@ KDP Builder is a local-first toolkit for generating professional, print-ready in
 - **Parity-aware safe area**: Even/odd pages mirror inner/outer margins; optional gutter.
 - **Extensible**: Add validators, AI layout gen, and covers.
 - **Local-first**: Works offline; no API keys required for the MVP.
+- **AI vision (optional)**: Enhanced element detection via DocLayNet + Ollama VLM for semantic labeling.
+
+## Local DocLayNet Weights (optional)
+
+To use a local DocLayNet YOLOv8 model for better table/text/title detection:
+1. Place your weights file at `models/doclayout/yolov8_doclaynet.pt`.
+2. Restart the API server; it will auto-load via `DOCLAYOUT_WEIGHTS`.
+
+If you use a different path, set the environment before starting:
+```bash
+export DOCLAYOUT_WEIGHTS=/absolute/path/to/your_weights.pt
+uvicorn web.backend.main:app --reload --port 8000
+```
 
 ## Project Structure
 

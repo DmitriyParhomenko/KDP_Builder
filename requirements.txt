@@ -20,6 +20,7 @@ sahi>=0.3.0
 huggingface_hub>=0.20.0
 
 # Utilities
+numpy<2.0
 python-dotenv==1.0.0
 Pillow>=9.0.0
 requests

@@ -52,7 +52,7 @@ interior.pdf
 cover.pdf
 
 # Web App Generated Files
-chroma_db/
+chroma_db*/
 designs_storage/
 exports/
 *.pdf

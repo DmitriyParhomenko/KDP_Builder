@@ -7,6 +7,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List, Dict, Any, Tuple
 import json
+import os
 import numpy as np
 from PIL import Image
 
@@ -62,32 +63,59 @@ def _map_yolo_class_to_our(cls_name: str) -> str:
     return "shape"
 
 def _get_doclayout_model():
-    """Load a document-layout YOLO model (DocLayNet) once from HuggingFace."""
+    """Load a document-layout YOLO model once.
+
+    Order of preference:
+    1) Local path from env DOCLAYOUT_WEIGHTS (skip HF if set)
+    2) HuggingFace download if configured
+    3) Fallback to generic yolov8n.pt
+    """
     global _doclayout_model
-    if _doclayout_model is None and YOLO_AVAILABLE and SAHI_AVAILABLE and HF_HUB_AVAILABLE:
-        try:
-            # Use a public DocLayNet YOLOv8 model from HuggingFace
-            # Example repo: "microsoft/DocLayNet-yolov8" (adjust if different)
-            model_path = hf_hub_download(
-                repo_id="microsoft/DocLayNet-yolov8",
-                filename="yolov8n_doclaynet.pt",
-                cache_dir="models/doclayout"
-            )
-            _doclayout_model = AutoDetectionModel.from_pretrained(
-                model_type="yolov8",
-                model_path=model_path,
-                confidence_threshold=0.25,
-                device="cpu",
-            )
-        except Exception as e:
-            print(f"⚠️ Failed to load DocLayNet from HuggingFace: {e}")
-            # Fallback: use generic yolov8n as placeholder
-            _doclayout_model = AutoDetectionModel.from_pretrained(
-                model_type="yolov8",
-                model_path="yolov8n.pt",
-                confidence_threshold=0.25,
-                device="cpu",
-            )
+    if _doclayout_model is None and YOLO_AVAILABLE and SAHI_AVAILABLE:
+        # 1) Local weights via env (skip HF if this is set)
+        env_path = os.getenv("DOCLAYOUT_WEIGHTS")
+        if env_path and Path(env_path).exists():
+            try:
+                _doclayout_model = AutoDetectionModel.from_pretrained(
+                    model_type="yolov8",
+                    model_path=env_path,
+                    confidence_threshold=0.25,
+                    device="cpu",
+                )
+                print(f"✅ Loaded DocLayout from local weights: {env_path}")
+                return _doclayout_model
+            except Exception as e:
+                print(f"⚠️ Failed to load DocLayout weights from {env_path}: {e}")
+
+        # 2) HuggingFace (only if DOCLAYOUT_WEIGHTS not set)
+        if not env_path and HF_HUB_AVAILABLE:
+            try:
+                repo_id = os.getenv("DOCLAYOUT_HF_REPO", "microsoft/DocLayNet-yolov8")
+                filename = os.getenv("DOCLAYOUT_HF_FILE", "yolov8n_doclaynet.pt")
+                model_path = hf_hub_download(
+                    repo_id=repo_id,
+                    filename=filename,
+                    cache_dir="models/doclayout"
+                )
+                _doclayout_model = AutoDetectionModel.from_pretrained(
+                    model_type="yolov8",
+                    model_path=model_path,
+                    confidence_threshold=0.25,
+                    device="cpu",
+                )
+                print(f"✅ Loaded DocLayout from HuggingFace: {repo_id}/{filename}")
+                return _doclayout_model
+            except Exception as e:
+                print(f"⚠️ Failed to load DocLayout from HuggingFace: {e}")
+
+        # 3) Fallback: generic yolov8n
+        _doclayout_model = AutoDetectionModel.from_pretrained(
+            model_type="yolov8",
+            model_path="yolov8n.pt",
+            confidence_threshold=0.25,
+            device="cpu",
+        )
+        print("⚠️ Using generic yolov8n.pt as DocLayout fallback")
     return _doclayout_model
 
 def _get_ollama_client():
@@ -103,7 +131,7 @@ def detect_doclayout(image_path: Path, conf_threshold: float = 0.25, imgsz: int 
     if model is None:
         return []
     result = get_sliced_prediction(
-        image_path=str(image_path),
+        image=str(image_path),
         detection_model=model,
         slice_height=tile_size,
         slice_width=tile_size,

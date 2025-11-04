@@ -26,15 +26,32 @@ class PatternDatabase:
         
         # Initialize ChromaDB client with new API
         self.client = chromadb.PersistentClient(path=str(self.persist_directory))
-        
-        # Get or create collection
-        self.collection = self.client.get_or_create_collection(
-            name="design_patterns",
-            metadata={
-                "description": "KDP design patterns learned from professional Etsy PDFs",
-                "hnsw:space": "cosine"  # Use cosine similarity
-            }
-        )
+
+        try:
+            self.collection = self.client.get_or_create_collection(
+                name="design_patterns",
+                metadata={
+                    "description": "KDP design patterns learned from professional Etsy PDFs",
+                    "hnsw:space": "cosine"
+                }
+            )
+        except Exception:
+            import shutil, time
+            backup = self.persist_directory.with_name(self.persist_directory.name + f"_backup_{int(time.time())}")
+            try:
+                if self.persist_directory.exists():
+                    shutil.move(str(self.persist_directory), str(backup))
+            except Exception:
+                pass
+            self.persist_directory.mkdir(parents=True, exist_ok=True)
+            self.client = chromadb.PersistentClient(path=str(self.persist_directory))
+            self.collection = self.client.get_or_create_collection(
+                name="design_patterns",
+                metadata={
+                    "description": "KDP design patterns learned from professional Etsy PDFs",
+                    "hnsw:space": "cosine"
+                }
+            )
         
         print(f"✅ ChromaDB initialized at {self.persist_directory}")
         print(f"📊 Current patterns in database: {self.collection.count()}")

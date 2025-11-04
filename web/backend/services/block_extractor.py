@@ -80,10 +80,10 @@ def _merge_lines_cv(page_png_path: Path, dpi_scale: float = 1.0) -> Tuple[List[D
     return merged_h, merged_v
 
 
-def _find_contour_checkboxes(page_png_path: Path, dpi_scale: float = 1.0) -> List[Dict[str, Any]]:
+def _find_contour_checkboxes(page_png_path: Path, dpi_scale: float = 1.0, page_h: float = 0.0) -> List[Dict[str, Any]]:
     """
     Detect checkboxes via contours (small squares) using OpenCV.
-    Returns list of rectangle primitives.
+    Returns list of rectangle primitives, filtering out top-margin noise.
     """
     if cv2 is None or np is None or not page_png_path.exists():
         return []
@@ -97,7 +97,11 @@ def _find_contour_checkboxes(page_png_path: Path, dpi_scale: float = 1.0) -> Lis
         x, y, w, h = cv2.boundingRect(cnt)
         # Filter small squares
         if 8 <= w / dpi_scale <= 30 and 8 <= h / dpi_scale <= 30 and abs(w - h) <= max(6, 0.3 * max(w, h)):
-            checkboxes.append({"type": "rectangle", "x": x / dpi_scale, "y": y / dpi_scale, "width": w / dpi_scale, "height": h / dpi_scale, "properties": {}})
+            y_pt = y / dpi_scale
+            # Drop top-margin noise (header area)
+            if page_h > 0 and y_pt < page_h * 0.2:
+                continue
+            checkboxes.append({"type": "rectangle", "x": x / dpi_scale, "y": y_pt, "width": w / dpi_scale, "height": h / dpi_scale, "properties": {}})
     return checkboxes
 
 
@@ -438,42 +442,13 @@ def _find_grids_from_merged_lines(merged_h: List[Dict[str, Any]], merged_v: List
     return blocks
 
 
-def _find_checkbox_lists_from_contours(contour_checkboxes: List[Dict[str, Any]], texts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Detect checkbox + label pairs from CV-detected contours."""
-    if not contour_checkboxes:
-        return []
-    entries: List[Dict[str, Any]] = []
-    for b in contour_checkboxes:
-        bx = b.get("x", 0)
-        by = b.get("y", 0)
-        bw = b.get("width", 0)
-        bh = b.get("height", 0)
-        # find nearest text to the right on same baseline window
-        best = None
-        best_dx = 1e9
-        for t in texts:
-            tx = t.get("x", 0)
-            ty = t.get("y", 0)
-            th = t.get("height", 0)
-            # vertical overlap with box centerline
-            if abs((ty + th / 2) - (by + bh / 2)) <= max(20, bh):
-                dx = tx - (bx + bw)
-                if 4 <= dx <= 500:
-                    if dx < best_dx:
-                        best = t
-                        best_dx = dx
-        entries.append({"rect": b, "label": best, "x": bx, "y": by})
-    if len(entries) < 2:
-        return []
-    # simple single-column grouping for contours
-    items = []
-    for it in sorted(entries, key=lambda v: v["y"]):
-        items.append({"rect": it["rect"], "label": it["label"]})
-    if len(items) >= 4:
-        blocks = [{"type": "checkbox_list", "items": items, "source": "cv_contour"}]
-    else:
-        blocks = []
-    return blocks
+def _form_checkbox_list_from_contours(contour_checkboxes: List[Dict[str, Any]], texts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Form a checkbox_list from contour-detected checkboxes if they form a vertical list.
+    
+    DISABLED: Contour detection often picks up grid cell artifacts as checkboxes.
+    We rely on PDF rectangles and AI-validated checkboxes instead.
+    """
+    return []
 
 
 def _find_checkbox_lists(rects: List[Dict[str, Any]], texts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -816,7 +791,7 @@ def extract_blocks(pattern_dir: Path, ai_detect: bool = False, ai_model: str = "
             # Estimate DPI scale from page size vs typical letter size (612x792)
             dpi_scale = max(page_w / 612.0, page_h / 792.0)
             merged_h, merged_v = _merge_lines_cv(page_png_path, dpi_scale)
-            contour_checkboxes = _find_contour_checkboxes(page_png_path, dpi_scale)
+            contour_checkboxes = _find_contour_checkboxes(page_png_path, dpi_scale, page_h)
             # AI detection if requested
             if ai_detect:
                 try:
@@ -888,7 +863,7 @@ def extract_blocks(pattern_dir: Path, ai_detect: bool = False, ai_model: str = "
 
         # Checkbox lists from CV contours (fallback if no original rects)
         if not cb_lists and contour_checkboxes:
-            cb_contour_lists = _find_checkbox_lists_from_contours(contour_checkboxes, texts)
+            cb_contour_lists = _form_checkbox_list_from_contours(contour_checkboxes, texts)
             for cb in cb_contour_lists:
                 cb["page"] = page.get("page_index", 0)
                 all_blocks.append(cb)
@@ -923,8 +898,8 @@ def extract_blocks(pattern_dir: Path, ai_detect: bool = False, ai_model: str = "
                     keep.append(b)
             return keep
 
-        # Helper: convert AI detections to blocks/elements
-        def ai_to_blocks(dets: List[Dict[str, Any]], page_idx: int, page_w: float, page_h: float, texts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        # Helper: convert AI detections to blocks/elements, validated against PDF primitives
+        def ai_to_blocks(dets: List[Dict[str, Any]], page_idx: int, page_w: float, page_h: float, texts: List[Dict[str, Any]], rects: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             blocks: List[Dict[str, Any]] = []
             if not dets:
                 return blocks
@@ -955,27 +930,51 @@ def extract_blocks(pattern_dir: Path, ai_detect: bool = False, ai_model: str = "
                     blocks.append({"type": "header", "text": {"type": "text", **bbox, "properties": {}}, "source": "ai_text_region", "page": page_idx})
                 else:
                     blocks.append({"type": "text_region", "rect": {"type": "rectangle", **bbox, "properties": {}}, "source": "ai_text_region", "page": page_idx})
-            # Checkboxes: add as checkbox_list if grouped; else as individual checkboxes
+            # Helper: find matching PDF rectangle by IoU
+            def _match_pdf_rect(bbox: Dict[str, Any], rects: List[Dict[str, Any]], iou_thr: float = 0.5) -> Dict[str, Any] | None:
+                for r in rects or []:
+                    if _iou(bbox, r) >= iou_thr:
+                        return r
+                return None
+
+            # Checkboxes: keep only if matched to a real PDF rectangle and not in top margin
             cbs = by_class.get("checkbox", [])
-            if len(cbs) >= 4:
+            kept_cb: List[Dict[str, Any]] = []
+            for cb in cbs:
+                bb = cb.get("bbox", {})
+                if not bb:
+                    continue
+                # Drop top margin noise
+                if bb.get("y", 0) < page_h * 0.18:
+                    continue
+                # Size sanity
+                w = bb.get("width", 0); h = bb.get("height", 0)
+                if w <= 6 or h <= 6 or w > 80 or h > 80:
+                    continue
+                if _match_pdf_rect(bb, rects, 0.5):
+                    kept_cb.append(cb)
+            if len(kept_cb) >= 4:
                 items = []
-                for cb in sorted(cbs, key=lambda d: d.get("bbox", {}).get("y", 0)):
+                for cb in sorted(kept_cb, key=lambda d: d.get("bbox", {}).get("y", 0)):
                     items.append({"rect": {"type": "rectangle", **cb.get("bbox", {}), "properties": {}}, "label": None})
-                blocks.append({"type": "checkbox_list", "items": items, "source": "ai_checkbox", "page": page_idx})
+                if items:
+                    blocks.append({"type": "checkbox_list", "items": items, "source": "ai_checkbox", "page": page_idx})
             else:
-                for cb in cbs:
+                for cb in kept_cb:
                     blocks.append({"type": "checkbox", "rect": {"type": "rectangle", **cb.get("bbox", {}), "properties": {}}, "source": "ai_checkbox", "page": page_idx})
-            # Labeled inputs from VLM
+
+            # Labeled inputs from VLM: keep only if a PDF rectangle matches
             for li in by_class.get("labeled_input", []):
                 bbox = li.get("bbox", {})
-                label_text = li.get("label", "")
-                blocks.append({"type": "labeled_input", "rect": {"type": "rectangle", **bbox, "properties": {}}, "label_text": label_text, "source": "ollama_vl", "page": page_idx})
-            # Generic shapes
-            for sh in by_class.get("shape", []):
-                bbox = sh.get("bbox", {})
-                if bbox.get("width", 0) < 20 or bbox.get("height", 0) < 20:
+                if not bbox:
                     continue
-                blocks.append({"type": "shape", "rect": {"type": "rectangle", **bbox, "properties": {}}, "source": "ai_shape", "page": page_idx})
+                m = _match_pdf_rect(bbox, rects, 0.4)
+                if not m:
+                    continue
+                label_text = li.get("label", "")
+                blocks.append({"type": "labeled_input", "rect": {"type": "rectangle", **m, "properties": {}}, "label_text": label_text, "source": "ollama_vl", "page": page_idx})
+
+            # Do not add generic shapes from AI
             return blocks
 
         # Per-page AI fusion
@@ -984,10 +983,11 @@ def extract_blocks(pattern_dir: Path, ai_detect: bool = False, ai_model: str = "
             page_w = pdata["page_w"]
             page_h = pdata["page_h"]
             texts = pdata["texts"]
+            rects_page = [e for e in pages[pdata["page_index"]].get("elements", []) if e.get("type") == "rectangle"]
             ai_page = pdata.get("ai", [])
             if ai_page:
                 deduped = dedupe_boxes(ai_page)
-                ai_blocks = ai_to_blocks(deduped, page_idx, page_w, page_h, texts)
+                ai_blocks = ai_to_blocks(deduped, page_idx, page_w, page_h, texts, rects_page)
                 # Prefer vector/CV geometry; add AI as fallback/semantics
                 # Example: if no grid on this page, add AI grid
                 has_grid = any(b.get("type") == "grid" and int(b.get("page", 0)) == page_idx for b in fused_blocks)

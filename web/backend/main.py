@@ -4,6 +4,13 @@ FastAPI backend for KDP Visual Editor
 A Figma-like visual editor for creating KDP planner interiors with AI assistance.
 """
 
+import os
+from pathlib import Path
+# Prefer local DocLayNet weights if present
+local_weights = Path(__file__).parent.parent.parent / "models" / "doclayout" / "yolov8_doclaynet.pt"
+if local_weights.exists() and not os.getenv("DOCLAYOUT_WEIGHTS"):
+    os.environ["DOCLAYOUT_WEIGHTS"] = str(local_weights.resolve())
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
