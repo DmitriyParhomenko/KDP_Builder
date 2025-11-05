@@ -23,6 +23,8 @@ function App() {
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isLearningFromPDF, setIsLearningFromPDF] = useState(false);
+  const [learnProgress, setLearnProgress] = useState('');
 
   // Create new design on mount
   useEffect(() => {
@@ -70,6 +72,53 @@ function App() {
   const addDebugLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString();
     setDebugLogs(prev => [...prev, `[${timestamp}] ${message}`]);
+  };
+
+  const handleLearnFromPDF = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !file.name.toLowerCase().endsWith('.pdf')) {
+      alert('Please select a PDF file.');
+      return;
+    }
+
+    setIsLearningFromPDF(true);
+    setLearnProgress('Uploading and analyzing PDF...');
+    addDebugLog(`📄 Uploading ${file.name}`);
+
+    const formData = new FormData();
+    formData.append('file', file);
+    // Add AI parameters as query string (FastAPI supports Query for multipart)
+    const params = new URLSearchParams({
+      ai_detect: 'true',
+      ai_model: 'both',
+      imgsz: '1536',
+      tile_size: '640',
+      tile_overlap: '160',
+    });
+
+    try {
+      const response = await fetch(`/api/ai/learn?${params}`, {
+        method: 'POST',
+        body: formData,
+      });
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || 'Learning failed');
+      }
+
+      setLearnProgress(`Extracted ${result.blocks} blocks, ${result.elements} elements.`);
+      addDebugLog(`✅ Learned pattern ${result.pattern_id}: ${result.description}`);
+
+      // Optional: load the pattern onto the canvas (you can implement a loader)
+      // await loadPatternOntoCanvas(result.pattern_id);
+    } catch (error: any) {
+      setLearnProgress(`Error: ${error.message}`);
+      addDebugLog(`❌ Learning failed: ${error.message}`);
+    } finally {
+      setIsLearningFromPDF(false);
+      // Reset file input
+      event.target.value = '';
+    }
   };
 
   const handleAISuggest = async () => {
@@ -161,22 +210,7 @@ function App() {
     }
   };
 
-  const handleUploadPDF = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setIsLoading(true);
-    try {
-      const result = await aiAPI.learnFromPDF(file);
-      alert(`✅ PDF analyzed! Learned pattern: ${result.pattern_id}`);
-    } catch (error) {
-      console.error('PDF upload failed:', error);
-      alert('❌ Failed to analyze PDF');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+  
   if (isLoading && !design) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-900 text-white">
@@ -210,8 +244,9 @@ function App() {
             <input
               type="file"
               accept=".pdf"
-              onChange={handleUploadPDF}
+              onChange={handleLearnFromPDF}
               className="hidden"
+              disabled={isLearningFromPDF}
             />
           </label>
 
@@ -236,6 +271,22 @@ function App() {
           </button>
         </div>
       </div>
+
+      {/* Learn from PDF Progress */}
+      {isLearningFromPDF && (
+        <div className="px-4 py-2 bg-purple-900 bg-opacity-30 border-t border-purple-600 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-400"></div>
+            <span className="text-sm text-purple-300">{learnProgress}</span>
+          </div>
+          <button
+            onClick={() => setIsLearningFromPDF(false)}
+            className="text-xs text-purple-400 hover:text-purple-300 underline"
+          >
+            Hide
+          </button>
+        </div>
+      )}
 
       {/* Main Editor Area */}
       <div className="flex flex-1 overflow-hidden">

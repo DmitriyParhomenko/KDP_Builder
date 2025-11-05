@@ -20,6 +20,9 @@ from pathlib import Path
 # Add parent directory to path to import kdp_builder
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
+# Storage directory for patterns
+STORAGE_DIR = Path(__file__).parent.parent.parent / "data" / "patterns"
+
 app = FastAPI(
     title="KDP Visual Editor API",
     description="Backend API for KDP planner visual editor with AI assistance",
@@ -37,6 +40,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+from fastapi.responses import JSONResponse
+from fastapi import Request
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Return detailed error messages as JSON for debugging."""
+    return JSONResponse(
+        status_code=500,
+        content={"success": False, "error": str(exc)},
+    )
 
 @app.get("/")
 async def root():

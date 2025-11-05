@@ -4,7 +4,7 @@ AI API endpoints
 AI-powered layout suggestions and pattern learning.
 """
 
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, HTTPException, UploadFile, File, Query
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import sys
@@ -90,66 +90,139 @@ async def improve_design(request: ImprovementRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/learn")
-async def learn_from_pdf(file: UploadFile = File(...)):
+async def learn_from_pdf(
+    file: UploadFile = File(...),
+    ai_detect: bool = Query(True, description="Run AI vision detection"),
+    ai_model: str = Query("both", description="AI model: doclayout, ollama_vl, both"),
+    imgsz: int = Query(1536, description="YOLO inference size"),
+    tile_size: int = Query(640, description="SAHI tile size"),
+    tile_overlap: int = Query(160, description="SAHI tile overlap"),
+):
     """
     Learn design patterns from uploaded PDF.
     
-    Analyzes a professional Etsy PDF and stores learned patterns.
+    Analyzes a professional Etsy PDF, extracts blocks with AI, and stores the pattern.
+    Returns pattern_id so the UI can load the extracted blocks on canvas.
     
     Args:
         file: PDF file to analyze
+        ai_detect: Enable AI vision detection
+        ai_model: AI model to use
+        imgsz: YOLO inference image size
+        tile_size: SAHI tile size
+        tile_overlap: SAHI tile overlap
     """
-    if not file.filename.endswith('.pdf'):
-        raise HTTPException(status_code=400, detail="File must be a PDF")
-    
-    # Save uploaded file temporarily
-    temp_path = Path(f"./temp_{file.filename}")
     try:
-        with open(temp_path, "wb") as f:
-            content = await file.read()
+        if not file.filename.lower().endswith('.pdf'):
+            raise HTTPException(status_code=400, detail="File must be a PDF")
+        
+        import uuid
+        import shutil
+        from pathlib import Path
+        from fastapi import Query
+
+        # Generate a pattern ID and directories
+        pattern_id = str(uuid.uuid4())
+        from ..main import STORAGE_DIR
+        pattern_dir = STORAGE_DIR / pattern_id
+        pattern_dir.mkdir(parents=True, exist_ok=True)
+        analysis_dir = pattern_dir / "analysis"
+        extracted_dir = pattern_dir / "extracted"
+        analysis_dir.mkdir(parents=True, exist_ok=True)
+        extracted_dir.mkdir(parents=True, exist_ok=True)
+
+        # Save uploaded PDF as original.pdf (expected by analyze_pdf)
+        pdf_path = pattern_dir / "original.pdf"
+        content = await file.read()
+        with open(pdf_path, "wb") as f:
             f.write(content)
 
-        # Analyze PDF (always try to return this even if downstream fails)
-        analyzer = PDFDesignAnalyzer()
-        patterns = analyzer.analyze_pdf(str(temp_path), planner_type="uploaded") or {}
-
-        # Try to generate AI description; fall back on failure
+        # Step 1: Analyze PDF (vector extraction + PNG rendering)
         try:
-            description = ai_service.analyze_pdf_pattern(patterns)
+            from ..services.pdf_parser import analyze_pdf
+            result = analyze_pdf(pattern_dir, ocr=False)
+            if not result.get("success"):
+                raise Exception(result.get("error", "PDF analysis returned failure"))
         except Exception as e:
-            description = "Professional planner layout"
-            print(f"⚠️  AI description generation failed: {e}")
+            raise Exception(f"PDF analysis failed: {e}")
 
-        # Try to add to vector DB; mark status
-        stored = True
-        pattern_id = None
+        # Step 2: Extract blocks with AI
         try:
-            pattern_id = pattern_db.add_pattern(
-                pattern_id=None,
-                description=description,
-                metadata=patterns
+            from ..services.block_extractor import extract_blocks
+            extract_result = extract_blocks(
+                pattern_dir,
+                ai_detect=ai_detect,
+                ai_model=ai_model,
+                imgsz=imgsz,
+                tile_size=tile_size,
+                tile_overlap=tile_overlap,
             )
         except Exception as e:
-            stored = False
-            print(f"⚠️  Storing pattern in DB failed: {e}")
+            raise Exception(f"Block extraction failed: {e}")
+
+        if not extract_result.get("success"):
+            raise Exception(extract_result.get("error", "Extraction failed"))
+
+        # Step 3: Store in pattern DB for learning
+        try:
+            blocks = extract_result.get("blocks", [])
+            elements = extract_result.get("elements", [])
+            style_tokens = {
+                "block_types": list({b.get("type") for b in blocks}),
+                "element_types": list({e.get("type") for e in elements}),
+                "num_blocks": len(blocks),
+                "num_elements": len(elements),
+            }
+            description = ai_service.analyze_pdf_pattern({"blocks": blocks, "elements": elements})
+            stored_pattern_id = pattern_db.add_pattern(
+                pattern_id=pattern_id,
+                description=description,
+                metadata={
+                    "source": "upload",
+                    "ai_model": ai_model,
+                    "filename": file.filename,
+                    "blocks": blocks,
+                    "elements": elements,
+                    "style_tokens": style_tokens,
+                },
+            )
+        except Exception as e:
+            raise Exception(f"Pattern storage failed: {e}")
+
+        # Step 4: Generate thumbnail
+        try:
+            from ..services.thumbnail_generator import generate_thumbnail_for_pattern
+            generate_thumbnail_for_pattern(pattern_id)
+        except Exception as e:
+            raise Exception(f"Thumbnail generation failed: {e}")
 
         return {
             "success": True,
-            "message": "PDF analyzed",
             "pattern_id": pattern_id,
-            "db_stored": stored,
+            "filename": file.filename,
+            "blocks": len(blocks),
+            "elements": len(elements),
             "description": description,
-            "patterns": patterns,
-            "saved_to": str(analyzer.output_dir),
+            "db_stored": stored_pattern_id is not None,
         }
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
+        import traceback
+        print("=== /api/ai/learn EXCEPTION ===")
+        traceback.print_exc()
+        # Cleanup on failure if pattern_dir exists
         try:
-            if temp_path.exists():
-                temp_path.unlink()
+            import shutil
+            if 'pattern_dir' in locals():
+                shutil.rmtree(pattern_dir, ignore_errors=True)
         except Exception:
             pass
+        # Force error as JSON response
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)},
+        )
 
 @router.get("/patterns", response_model=PatternResponse)
 async def get_patterns(query: Optional[str] = None, limit: int = 10):
