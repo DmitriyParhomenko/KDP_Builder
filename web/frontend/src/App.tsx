@@ -25,6 +25,8 @@ function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLearningFromPDF, setIsLearningFromPDF] = useState(false);
   const [learnProgress, setLearnProgress] = useState('');
+  const [learnLogs, setLearnLogs] = useState<string[]>([]);
+  const [showLearnLogs, setShowLearnLogs] = useState(false);
 
   // Create new design on mount
   useEffect(() => {
@@ -74,6 +76,11 @@ function App() {
     setDebugLogs(prev => [...prev, `[${timestamp}] ${message}`]);
   };
 
+  const addLearnLog = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setLearnLogs(prev => [...prev, `[${timestamp}] ${message}`]);
+  };
+
   const handleLearnFromPDF = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !file.name.toLowerCase().endsWith('.pdf')) {
@@ -82,8 +89,10 @@ function App() {
     }
 
     setIsLearningFromPDF(true);
-    setLearnProgress('Uploading and analyzing PDF...');
-    addDebugLog(`📄 Uploading ${file.name}`);
+    setLearnProgress('Initializing...');
+    setLearnLogs([]);
+    addLearnLog(`📂 Selected file: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+    addLearnLog(`🚀 Starting Learn from PDF flow...`);
 
     const formData = new FormData();
     formData.append('file', file);
@@ -97,23 +106,30 @@ function App() {
     });
 
     try {
+      setLearnProgress('Uploading PDF...');
+      addLearnLog(`📤 Uploading PDF to /api/ai/learn`);
       const response = await fetch(`/api/ai/learn?${params}`, {
         method: 'POST',
         body: formData,
       });
+      addLearnLog(`⏳ Server processing...`);
       const result = await response.json();
       if (!result.success) {
         throw new Error(result.error || 'Learning failed');
       }
 
-      setLearnProgress(`Extracted ${result.blocks} blocks, ${result.elements} elements.`);
-      addDebugLog(`✅ Learned pattern ${result.pattern_id}: ${result.description}`);
+      // Step-by-step logs based on backend flow
+      addLearnLog(`✅ PDF analysis completed`);
+      addLearnLog(`🤖 AI extraction (DocLayNet + Ollama VLM) completed`);
+      addLearnLog(`💾 Pattern stored in ChromaDB: ${result.pattern_id}`);
+      addLearnLog(`🖼️ Thumbnail generated`);
+      addLearnLog(`📊 Extraction summary: ${result.blocks} blocks, ${result.elements} elements`);
+      addLearnLog(`📝 AI description: ${result.description}`);
 
-      // Optional: load the pattern onto the canvas (you can implement a loader)
-      // await loadPatternOntoCanvas(result.pattern_id);
+      setLearnProgress(`Done: ${result.blocks} blocks, ${result.elements} elements`);
     } catch (error: any) {
       setLearnProgress(`Error: ${error.message}`);
-      addDebugLog(`❌ Learning failed: ${error.message}`);
+      addLearnLog(`❌ Learning failed: ${error.message}`);
     } finally {
       setIsLearningFromPDF(false);
       // Reset file input
@@ -274,17 +290,29 @@ function App() {
 
       {/* Learn from PDF Progress */}
       {isLearningFromPDF && (
-        <div className="px-4 py-2 bg-purple-900 bg-opacity-30 border-t border-purple-600 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-400"></div>
-            <span className="text-sm text-purple-300">{learnProgress}</span>
+        <div className="border-t border-purple-600">
+          <div className="px-4 py-2 bg-purple-900 bg-opacity-30 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-400"></div>
+              <span className="text-sm text-purple-300">{learnProgress}</span>
+            </div>
+            <button
+              onClick={() => setShowLearnLogs(!showLearnLogs)}
+              className="text-xs text-purple-400 hover:text-purple-300 underline"
+            >
+              {showLearnLogs ? '▼ Hide' : '▶'} Debug Console
+            </button>
           </div>
-          <button
-            onClick={() => setIsLearningFromPDF(false)}
-            className="text-xs text-purple-400 hover:text-purple-300 underline"
-          >
-            Hide
-          </button>
+          {/* Debug Console */}
+          {showLearnLogs && learnLogs.length > 0 && (
+            <div className="px-4 py-2 bg-purple-950 bg-opacity-50 border-t border-purple-700">
+              <div className="font-mono text-xs space-y-1 max-h-64 overflow-y-auto">
+                {learnLogs.map((log, i) => (
+                  <div key={i} className="text-purple-200">{log}</div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

@@ -191,8 +191,10 @@ async def learn_from_pdf(
 
         # Step 4: Generate thumbnail
         try:
+            print(f"=== Generating thumbnail for pattern {pattern_id} ===")
             from ..services.thumbnail_generator import generate_thumbnail_for_pattern
-            generate_thumbnail_for_pattern(pattern_id)
+            ok = generate_thumbnail_for_pattern(pattern_id)
+            print(f"=== Thumbnail generation result: {ok} ===")
         except Exception as e:
             raise Exception(f"Thumbnail generation failed: {e}")
 

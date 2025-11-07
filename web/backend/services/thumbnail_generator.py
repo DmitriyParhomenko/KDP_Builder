@@ -26,6 +26,8 @@ def _estimate_page_size(elements: List[Dict[str, Any]], blocks: List[Dict[str, A
 
     # Elements
     for el in elements or []:
+        if not isinstance(el, dict):
+            continue
         t = el.get("type")
         x = el.get("x", 0.0)
         y = el.get("y", 0.0)
@@ -38,6 +40,8 @@ def _estimate_page_size(elements: List[Dict[str, Any]], blocks: List[Dict[str, A
 
     # Blocks
     for b in blocks or []:
+        if not isinstance(b, dict):
+            continue
         bt = b.get("type")
         if bt == "labeled_line":
             ln = b.get("line", {})
@@ -209,15 +213,19 @@ def generate_thumbnail_for_pattern(pattern_id: str) -> bool:
     Returns:
         True if successful, False otherwise
     """
+    print(f"🔍 generate_thumbnail_for_pattern: start for {pattern_id}")
     from web.backend.services.pattern_db import pattern_db
 
     pattern = pattern_db.get_pattern_with_extracted(pattern_id)
     if not pattern:
+        print(f"❌ No pattern found for {pattern_id}")
         return False
 
     elements = pattern.get("elements", [])
     blocks = pattern.get("blocks", [])
+    print(f"🔍 Found {len(elements)} elements, {len(blocks)} blocks")
     if not elements and not blocks:
+        print(f"❌ No elements or blocks for {pattern_id}")
         return False
 
     try:
@@ -230,20 +238,28 @@ def generate_thumbnail_for_pattern(pattern_id: str) -> bool:
                 meta = __import__("json").loads(page1.read_text())
                 page_w = float(meta.get("width", page_w))
                 page_h = float(meta.get("height", page_h))
-        except Exception:
+                print(f"📄 Page size from JSON: {page_w}x{page_h}")
+        except Exception as e:
+            print(f"⚠️ Could not read page_1.json: {e}")
             pass
         # Fallback: estimate from extracted elements/blocks
         if page_w == 432.0 and page_h == 648.0:
             est_w, est_h = _estimate_page_size(elements, blocks)
             page_w, page_h = est_w, est_h
+            print(f"📐 Estimated page size: {page_w}x{page_h}")
 
+        print(f"🎨 Rendering thumbnail...")
         png_bytes = render_thumbnail(elements, blocks, page_width=page_w, page_height=page_h)
         pattern_dir = Path("./data/patterns") / pattern_id
         pattern_dir.mkdir(parents=True, exist_ok=True)
-        (pattern_dir / "thumbnail.png").write_bytes(png_bytes)
+        thumb_path = pattern_dir / "thumbnail.png"
+        thumb_path.write_bytes(png_bytes)
+        print(f"✅ Thumbnail saved to {thumb_path} ({len(png_bytes)} bytes)")
         return True
     except Exception as e:
-        print(f"⚠️  Failed to generate thumbnail for {pattern_id}: {e}")
+        import traceback
+        print(f"⚠️ Failed to generate thumbnail for {pattern_id}: {e}")
+        traceback.print_exc()
         return False
 
 def generate_all_thumbnails() -> int:

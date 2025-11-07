@@ -151,8 +151,8 @@ class PatternDatabase:
         patterns_dir.mkdir(parents=True, exist_ok=True)
         pattern_dir = patterns_dir / pattern_id
         pattern_dir.mkdir(parents=True, exist_ok=True)
-        (pattern_dir / "blocks.json").write_text(json.dumps({"blocks": blocks}, indent=2))
-        (pattern_dir / "elements.json").write_text(json.dumps({"elements": elements}, indent=2))
+        (pattern_dir / "blocks.json").write_text(json.dumps(blocks, indent=2))
+        (pattern_dir / "elements.json").write_text(json.dumps(elements, indent=2))
         if style_tokens:
             (pattern_dir / "style_tokens.json").write_text(json.dumps(style_tokens, indent=2))
 
@@ -272,9 +272,9 @@ class PatternDatabase:
             style_path = (extracted_dir / "style_tokens.json") if (extracted_dir / "style_tokens.json").exists() else (pattern_dir / "style_tokens.json")
 
             if blocks_path.exists():
-                result["blocks"] = json.loads(blocks_path.read_text())["blocks"]
+                result["blocks"] = json.loads(blocks_path.read_text())
             if elements_path.exists():
-                result["elements"] = json.loads(elements_path.read_text())["elements"]
+                result["elements"] = json.loads(elements_path.read_text())
             if style_path.exists():
                 result["style_tokens"] = json.loads(style_path.read_text())
         except Exception as e:
