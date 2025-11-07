@@ -98,6 +98,7 @@ def render_thumbnail(
 
     # Draw blocks (colored by type)
     block_colors = {
+        # Old block types
         "header": (52, 152, 219),      # blue
         "weekly_row": (46, 204, 113),   # green
         "grid": (230, 126, 34),         # orange
@@ -105,6 +106,20 @@ def render_thumbnail(
         "checkbox_list": (231, 76, 60), # red
         "labeled_line": (39, 174, 96),  # dark green
         "star_row": (241, 196, 15),     # yellow
+        # New VLM label types
+        "habit_tracker": (46, 204, 113),   # green
+        "calendar": (52, 152, 219),        # blue
+        "title": (241, 196, 15),           # yellow
+        "goal_tracker": (230, 126, 34),    # orange
+        "water_tracker": (52, 152, 219),   # blue
+        "mood_tracker": (142, 68, 173),    # purple
+        "schedule": (39, 174, 96),         # dark green
+        "gratitude": (231, 76, 60),        # red
+        "table": (150, 150, 150),          # gray
+        "decorative": (200, 200, 200),     # light gray
+        "text_field": (100, 100, 100),     # dark gray
+        "other": (180, 180, 180),          # gray
+        "unknown": (150, 150, 150),        # gray
     }
 
     for block in blocks:
@@ -168,13 +183,22 @@ def render_thumbnail(
                 h = t.get("height", 0) * scale_y
                 draw.rectangle([x, y, x + w, y + h], outline=color, width=1)
         else:
-            rect = block.get("rect", {})
-            if rect:
-                x = rect.get("x", 0) * scale_x
-                y = rect.get("y", 0) * scale_y
-                w = rect.get("width", 0) * scale_x
-                h = rect.get("height", 0) * scale_y
+            # Try direct x,y,width,height (VLM-labeled blocks)
+            if "x" in block and "y" in block:
+                x = block.get("x", 0) * scale_x
+                y = block.get("y", 0) * scale_y
+                w = block.get("width", 0) * scale_x
+                h = block.get("height", 0) * scale_y
                 draw.rectangle([x, y, x + w, y + h], outline=color, width=1)
+            # Fallback to rect property
+            else:
+                rect = block.get("rect", {})
+                if rect:
+                    x = rect.get("x", 0) * scale_x
+                    y = rect.get("y", 0) * scale_y
+                    w = rect.get("width", 0) * scale_x
+                    h = rect.get("height", 0) * scale_y
+                    draw.rectangle([x, y, x + w, y + h], outline=color, width=1)
 
     # Draw raw elements (light gray)
     for el in elements:
@@ -229,20 +253,36 @@ def generate_thumbnail_for_pattern(pattern_id: str) -> bool:
         return False
 
     try:
-        # Try to read page dimensions from analysis JSON if available
+        # Try to read page dimensions from pattern metadata (VLM blocks use pixel coords)
         pattern_dir = Path("./data/patterns") / pattern_id
         page_w, page_h = 432.0, 648.0
+        
+        # First try to get from pattern metadata (for VLM-extracted patterns)
         try:
-            page1 = pattern_dir / "analysis" / "page_1.json"
-            if page1.exists():
-                meta = __import__("json").loads(page1.read_text())
-                page_w = float(meta.get("width", page_w))
-                page_h = float(meta.get("height", page_h))
-                print(f"📄 Page size from JSON: {page_w}x{page_h}")
+            from web.backend.services.pattern_db import pattern_db
+            pat = pattern_db.get_pattern(pattern_id)
+            if pat and pat.get("metadata"):
+                meta = pat["metadata"]
+                if "page_width_px" in meta:
+                    page_w = float(meta["page_width_px"])
+                    page_h = float(meta["page_height_px"])
+                    print(f"📄 Page size from metadata (px): {page_w}x{page_h}")
         except Exception as e:
-            print(f"⚠️ Could not read page_1.json: {e}")
-            pass
-        # Fallback: estimate from extracted elements/blocks
+            print(f"⚠️ Could not read metadata: {e}")
+        
+        # Fallback: try analysis JSON
+        if page_w == 432.0 and page_h == 648.0:
+            try:
+                page1 = pattern_dir / "analysis" / "page_1.json"
+                if page1.exists():
+                    meta = __import__("json").loads(page1.read_text())
+                    page_w = float(meta.get("width", page_w))
+                    page_h = float(meta.get("height", page_h))
+                    print(f"📄 Page size from JSON: {page_w}x{page_h}")
+            except Exception as e:
+                print(f"⚠️ Could not read page_1.json: {e}")
+        
+        # Final fallback: estimate from extracted elements/blocks
         if page_w == 432.0 and page_h == 648.0:
             est_w, est_h = _estimate_page_size(elements, blocks)
             page_w, page_h = est_w, est_h

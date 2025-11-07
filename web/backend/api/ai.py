@@ -4,15 +4,19 @@ AI API endpoints
 AI-powered layout suggestions and pattern learning.
 """
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Query
+from fastapi import APIRouter, UploadFile, File, HTTPException, Query
 from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
-import sys
+from typing import Optional, List, Dict, Any
+from ..main import STORAGE_DIR
+from ..services.pattern_db import pattern_db
+from ..services.ai_service import ai_service
 from pathlib import Path
+import sys
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 
+router = APIRouter(prefix="/api/ai", tags=["ai"])
 from web.backend.services.ai_service import ai_service
 from web.backend.services.pattern_db import pattern_db
 from kdp_builder.analysis.pdf_analyzer import PDFDesignAnalyzer
@@ -137,36 +141,72 @@ async def learn_from_pdf(
         with open(pdf_path, "wb") as f:
             f.write(content)
 
-        # Step 1: Analyze PDF (vector extraction + PNG rendering)
+        # Step 1: Mac-safe raster + geometry extraction
         try:
-            from ..services.pdf_parser import analyze_pdf
-            result = analyze_pdf(pattern_dir, ocr=False)
-            if not result.get("success"):
-                raise Exception(result.get("error", "PDF analysis returned failure"))
-        except Exception as e:
-            raise Exception(f"PDF analysis failed: {e}")
+            from ..config import PROFILES, Profile
+            from ..extract_utils import pdf_to_pngs, detect_doclayout_boxes_pt, pt_to_px, draw_overlay_and_thumb, crop_rois
+            from ..vlm_client import vlm_label_roi
 
-        # Step 2: Extract blocks with AI
-        try:
-            from ..services.block_extractor import extract_blocks
-            extract_result = extract_blocks(
-                pattern_dir,
-                ai_detect=ai_detect,
-                ai_model=ai_model,
-                imgsz=imgsz,
-                tile_size=tile_size,
-                tile_overlap=tile_overlap,
-            )
-        except Exception as e:
-            raise Exception(f"Block extraction failed: {e}")
+            # Use safe profile by default
+            profile: Profile = PROFILES.get("safe_mac_vlm")
+            if not profile:
+                raise Exception("Missing safe_mac_vlm profile")
+            print(f"=== Using Mac-safe profile: ai_model={profile.ai_model}, crop_mode={profile.crop_mode} ===")
 
-        if not extract_result.get("success"):
-            raise Exception(extract_result.get("error", "Extraction failed"))
+            # Rasterize PDF to PNGs at 300 DPI
+            raster_dir = pattern_dir / "raster"
+            pngs = pdf_to_pngs(str(pdf_path), str(raster_dir), dpi=300)
+            print(f"=== Rasterized {len(pngs)} pages ===")
+
+            # Extract geometry via PyMuPDF (no heavy models)
+            all_boxes = []
+            # Get page dimensions for thumbnail rendering
+            import fitz
+            doc = fitz.open(str(pdf_path))
+            page = doc[0]
+            page_width_pt = page.rect.width
+            page_height_pt = page.rect.height
+            page_width_px = page_width_pt * 300 / 72
+            page_height_px = page_height_pt * 300 / 72
+            print(f"=== Page size: {page_width_pt}x{page_height_pt} pt, {page_width_px}x{page_height_px} px ===")
+            
+            for i, png in enumerate(pngs):
+                boxes_pt = detect_doclayout_boxes_pt(str(pdf_path), i)
+                boxes_px = [pt_to_px(b, dpi=300) for b in boxes_pt]
+                all_boxes.extend(boxes_px)
+                # Save overlay/thumbnail for UI
+                overlay_path = pattern_dir / f"page_{i+1}_overlay.png"
+                thumb_path = pattern_dir / f"page_{i+1}_thumb.png"
+                draw_overlay_and_thumb(png, boxes_px, str(overlay_path), str(thumb_path))
+            print(f"=== Detected {len(all_boxes)} geometry boxes ===")
+
+            # Step 2: ROI-only VLM labeling (single-flight)
+            blocks = []
+            elements = []
+            for i, png in enumerate(pngs):
+                boxes_pt = detect_doclayout_boxes_pt(str(pdf_path), i)
+                boxes_px = [pt_to_px(b, dpi=300) for b in boxes_pt]
+                if profile.crop_mode == "boxes_only" and boxes_px:
+                    rois = crop_rois(png, boxes_px)
+                    for (roi_bgr, (x, y, w, h)) in rois:
+                        try:
+                            label = await asyncio.wait_for(vlm_label_roi(roi_bgr, model=profile.vlm, timeout_s=profile.timeout_s), timeout=profile.timeout_s + 5)
+                        except Exception as e:
+                            label = "unknown"
+                        blocks.append({"type": label, "x": x, "y": y, "width": w, "height": h, "page": i + 1})
+                else:
+                    # No boxes -> no VLM calls
+                    pass
+            print(f"=== Labeled {len(blocks)} blocks via VLM ===")
+        except Exception as e:
+            import traceback
+            print("=== Mac-safe extraction failed ===")
+            traceback.print_exc()
+            raise Exception(f"Mac-safe extraction failed: {e}")
 
         # Step 3: Store in pattern DB for learning
         try:
-            blocks = extract_result.get("blocks", [])
-            elements = extract_result.get("elements", [])
+            print(f"=== Storing pattern: {len(blocks)} blocks, {len(elements)} elements ===")
             style_tokens = {
                 "block_types": list({b.get("type") for b in blocks}),
                 "element_types": list({e.get("type") for e in elements}),
@@ -174,19 +214,29 @@ async def learn_from_pdf(
                 "num_elements": len(elements),
             }
             description = ai_service.analyze_pdf_pattern({"blocks": blocks, "elements": elements})
-            stored_pattern_id = pattern_db.add_pattern(
+            print(f"=== AI description: {description[:100]}... ===")
+            stored_pattern_id = pattern_db.add_extracted_pattern(
                 pattern_id=pattern_id,
                 description=description,
+                blocks=blocks,
+                elements=elements,
+                style_tokens=style_tokens,
                 metadata={
                     "source": "upload",
-                    "ai_model": ai_model,
+                    "ai_model": profile.ai_model,
+                    "profile": "safe_mac_vlm",
                     "filename": file.filename,
-                    "blocks": blocks,
-                    "elements": elements,
-                    "style_tokens": style_tokens,
+                    "page_width_px": page_width_px,
+                    "page_height_px": page_height_px,
+                    "page_width_pt": page_width_pt,
+                    "page_height_pt": page_height_pt,
                 },
             )
+            print(f"=== Pattern stored with ID: {stored_pattern_id} ===")
         except Exception as e:
+            import traceback
+            print("=== Pattern storage FAILED ===")
+            traceback.print_exc()
             raise Exception(f"Pattern storage failed: {e}")
 
         # Step 4: Generate thumbnail
@@ -286,7 +336,7 @@ async def delete_pattern(pattern_id: str):
     }
 
 @router.get("/stats")
-async def get_ai_stats():
+def get_stats():
     """Get AI service statistics"""
     db_stats = pattern_db.get_stats()
     
@@ -295,3 +345,117 @@ async def get_ai_stats():
         "model": ai_service.model,
         "database": db_stats
     }
+
+# === Mac-safe extraction + ROI labeling routes ===
+
+class ExtractResponse(BaseModel):
+    pages: int
+    overlays: list[str]
+    thumbs: list[str]
+    boxes_pt: list[list[float]]
+    boxes_px: list[list[float]]
+
+class LabelRequest(BaseModel):
+    profile: Optional[str] = "safe_mac_vlm"
+    vlm: Optional[str] = None
+    pdf_path: Optional[str] = None
+    pattern_id: Optional[str] = None
+
+class LabeledBox(BaseModel):
+    page: int
+    bbox_px: list[float]
+    label: str
+
+class LabelResponse(BaseModel):
+    items: list[LabeledBox]
+
+@router.post("/patterns/{pattern_id}/extract", response_model=ExtractResponse)
+async def extract(
+    pattern_id: str,
+    ai_detect: bool = True,
+    ai_model: str = Query("doclayout"),
+    imgsz: int = Query(1024), tile_size: int = Query(512), tile_overlap: int = Query(64),
+    profile: Optional[str] = None,
+    pdf_path: Optional[str] = None,
+):
+    from ..config import PROFILES, Profile
+    from ..extract_utils import pdf_to_pngs, detect_doclayout_boxes_pt, pt_to_px, draw_overlay_and_thumb
+
+    # Apply profile if present
+    if profile:
+        pf: Profile = PROFILES.get(profile)
+        if not pf: raise HTTPException(400, f"Unknown profile: {profile}")
+        ai_model = pf.ai_model
+        imgsz, tile_size, tile_overlap = pf.imgsz, pf.tile_size, pf.tile_overlap
+
+    if not pdf_path:
+        pdf_path = str(STORAGE_DIR / pattern_id / "original.pdf")
+    if not Path(pdf_path).exists():
+        raise HTTPException(404, f"PDF not found: {pdf_path}")
+
+    # 1) Rasterize
+    raster_dir = STORAGE_DIR / pattern_id / "raster"
+    pngs = pdf_to_pngs(pdf_path, str(raster_dir), dpi=300)
+
+    overlays, thumbs = [], []
+    all_boxes_pt, all_boxes_px = [], []
+
+    for i, png in enumerate(pngs):
+        boxes_pt = detect_doclayout_boxes_pt(pdf_path, i) if ai_detect and ai_model in ("doclayout","both") else []
+        boxes_px = [pt_to_px(b, dpi=300) for b in boxes_pt]
+
+        overlay_path = str(STORAGE_DIR / pattern_id / f"page_{i+1}_overlay.png")
+        thumb_path = str(STORAGE_DIR / pattern_id / f"page_{i+1}_thumb.png")
+        draw_overlay_and_thumb(png, boxes_px, overlay_path, thumb_path)
+
+        overlays.append(overlay_path); thumbs.append(thumb_path)
+        all_boxes_pt.extend([list(b) for b in boxes_pt])
+        all_boxes_px.extend([list(b) for b in boxes_px])
+
+    return ExtractResponse(
+        pages=len(pngs),
+        overlays=overlays, thumbs=thumbs,
+        boxes_pt=all_boxes_pt, boxes_px=all_boxes_px
+    )
+
+@router.post("/patterns/{pattern_id}/label", response_model=LabelResponse)
+async def label(pattern_id: str, body: LabelRequest):
+    import asyncio
+    from ..config import PROFILES, Profile
+    from ..extract_utils import pdf_to_pngs, detect_doclayout_boxes_pt, pt_to_px, crop_rois
+    from ..vlm_client import vlm_label_roi
+
+    pf = PROFILES.get(body.profile or "safe_mac_vlm")
+    if not pf: raise HTTPException(400, "Bad profile")
+    model = body.vlm or pf.vlm
+
+    pdf_path = body.pdf_path or str(STORAGE_DIR / pattern_id / "original.pdf")
+    if not Path(pdf_path).exists():
+        raise HTTPException(404, f"PDF not found: {pdf_path}")
+
+    # Reuse raster outputs
+    raster_dir = STORAGE_DIR / pattern_id / "raster"
+    pngs = sorted(raster_dir.glob("*.png"))
+    if not pngs:
+        # silently rasterize if not present
+        pngs = pdf_to_pngs(pdf_path, str(raster_dir), dpi=300)
+        pngs = [Path(p) for p in pngs]
+
+    results: list[LabeledBox] = []
+
+    for i, png in enumerate(pngs):
+        boxes_pt = detect_doclayout_boxes_pt(pdf_path, i)
+        boxes_px = [pt_to_px(b, dpi=300) for b in boxes_pt]
+
+        if pf.crop_mode == "boxes_only" and boxes_px:
+            rois = crop_rois(str(png), boxes_px)
+            for (roi_bgr, (x,y,w,h)) in rois:
+                try:
+                    label = await asyncio.wait_for(vlm_label_roi(roi_bgr, model=model, timeout_s=pf.timeout_s), timeout=pf.timeout_s+5)
+                except Exception as e:
+                    label = "unknown"
+                results.append(LabeledBox(page=i+1, bbox_px=[float(x),float(y),float(w),float(h)], label=label))
+        else:
+            pass
+
+    return LabelResponse(items=results)
