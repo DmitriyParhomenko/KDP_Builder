@@ -96,11 +96,12 @@ async def improve_design(request: ImprovementRequest):
 @router.post("/learn")
 async def learn_from_pdf(
     file: UploadFile = File(...),
-    ai_detect: bool = Query(True, description="Run AI vision detection"),
+    ai_detect: bool = Query(True, description="Enable AI detection"),
     ai_model: str = Query("both", description="AI model: doclayout, ollama_vl, both"),
     imgsz: int = Query(1536, description="YOLO inference size"),
     tile_size: int = Query(640, description="SAHI tile size"),
     tile_overlap: int = Query(160, description="SAHI tile overlap"),
+    use_openrouter: bool = Query(False, description="Use OpenRouter (Claude+Grok) instead of local models"),
 ):
     """
     Learn design patterns from uploaded PDF.
@@ -141,68 +142,118 @@ async def learn_from_pdf(
         with open(pdf_path, "wb") as f:
             f.write(content)
 
-        # Step 1: Mac-safe raster + geometry extraction
-        try:
-            from ..config import PROFILES, Profile
-            from ..extract_utils import pdf_to_pngs, detect_doclayout_boxes_pt, pt_to_px, draw_overlay_and_thumb, crop_rois
-            from ..vlm_client import vlm_label_roi
-
-            # Use safe profile by default
-            profile: Profile = PROFILES.get("safe_mac_vlm")
-            if not profile:
-                raise Exception("Missing safe_mac_vlm profile")
-            print(f"=== Using Mac-safe profile: ai_model={profile.ai_model}, crop_mode={profile.crop_mode} ===")
-
-            # Rasterize PDF to PNGs at 300 DPI
-            raster_dir = pattern_dir / "raster"
-            pngs = pdf_to_pngs(str(pdf_path), str(raster_dir), dpi=300)
-            print(f"=== Rasterized {len(pngs)} pages ===")
-
-            # Extract geometry via PyMuPDF (no heavy models)
-            all_boxes = []
-            # Get page dimensions for thumbnail rendering
-            import fitz
-            doc = fitz.open(str(pdf_path))
-            page = doc[0]
-            page_width_pt = page.rect.width
-            page_height_pt = page.rect.height
-            page_width_px = page_width_pt * 300 / 72
-            page_height_px = page_height_pt * 300 / 72
-            print(f"=== Page size: {page_width_pt}x{page_height_pt} pt, {page_width_px}x{page_height_px} px ===")
-            
-            for i, png in enumerate(pngs):
-                boxes_pt = detect_doclayout_boxes_pt(str(pdf_path), i)
-                boxes_px = [pt_to_px(b, dpi=300) for b in boxes_pt]
-                all_boxes.extend(boxes_px)
-                # Save overlay/thumbnail for UI
-                overlay_path = pattern_dir / f"page_{i+1}_overlay.png"
-                thumb_path = pattern_dir / f"page_{i+1}_thumb.png"
-                draw_overlay_and_thumb(png, boxes_px, str(overlay_path), str(thumb_path))
-            print(f"=== Detected {len(all_boxes)} geometry boxes ===")
-
-            # Step 2: ROI-only VLM labeling (single-flight)
-            blocks = []
-            elements = []
-            for i, png in enumerate(pngs):
-                boxes_pt = detect_doclayout_boxes_pt(str(pdf_path), i)
-                boxes_px = [pt_to_px(b, dpi=300) for b in boxes_pt]
-                if profile.crop_mode == "boxes_only" and boxes_px:
-                    rois = crop_rois(png, boxes_px)
-                    for (roi_bgr, (x, y, w, h)) in rois:
-                        try:
-                            label = await asyncio.wait_for(vlm_label_roi(roi_bgr, model=profile.vlm, timeout_s=profile.timeout_s), timeout=profile.timeout_s + 5)
-                        except Exception as e:
-                            label = "unknown"
-                        blocks.append({"type": label, "x": x, "y": y, "width": w, "height": h, "page": i + 1})
+        # Step 1: Choose extraction method
+        if use_openrouter:
+            # OpenRouter: Claude analyzes, Grok generates patterns
+            print("=== Using OpenRouter (Claude Sonnet 4.5 + Grok Vision) ===")
+            try:
+                from ..openrouter_client import analyze_with_claude, generate_pattern_with_grok, CLAUDE_EXTRACT_PROMPT, GROK_PATTERN_PROMPT
+                from ..extract_utils import pdf_to_pngs
+                
+                # Rasterize first page for Claude
+                raster_dir = pattern_dir / "raster"
+                pngs = pdf_to_pngs(str(pdf_path), str(raster_dir), dpi=300)
+                print(f"=== Rasterized {len(pngs)} pages ===")
+                
+                # Analyze with Claude
+                print("=== Analyzing with Claude Sonnet 4.5 ===")
+                claude_result = await analyze_with_claude(pngs[0], CLAUDE_EXTRACT_PROMPT, timeout_s=90)
+                if not claude_result["success"]:
+                    raise Exception(f"Claude analysis failed: {claude_result.get('error')}")
+                
+                analysis = claude_result["content"]
+                print(f"=== Claude analysis: {len(analysis)} chars ===")
+                
+                # Generate pattern with Grok
+                print("=== Generating pattern with Grok ===")
+                grok_result = await generate_pattern_with_grok(analysis, GROK_PATTERN_PROMPT, timeout_s=60)
+                if not grok_result["success"]:
+                    raise Exception(f"Grok generation failed: {grok_result.get('error')}")
+                
+                pattern_json = grok_result["content"]
+                print(f"=== Grok pattern: {len(pattern_json)} chars ===")
+                
+                # Parse blocks from Claude's analysis (JSON extraction)
+                import json
+                import re
+                json_match = re.search(r'```json\s*(.*?)\s*```', analysis, re.DOTALL)
+                if json_match:
+                    blocks = json.loads(json_match.group(1))
                 else:
-                    # No boxes -> no VLM calls
-                    pass
-            print(f"=== Labeled {len(blocks)} blocks via VLM ===")
-        except Exception as e:
-            import traceback
-            print("=== Mac-safe extraction failed ===")
-            traceback.print_exc()
-            raise Exception(f"Mac-safe extraction failed: {e}")
+                    # Fallback: try to parse entire response as JSON
+                    blocks = json.loads(analysis)
+                
+                elements = []
+                print(f"=== Extracted {len(blocks)} blocks from Claude ===")
+                
+            except Exception as e:
+                import traceback
+                print("=== OpenRouter extraction failed ===")
+                traceback.print_exc()
+                raise Exception(f"OpenRouter extraction failed: {e}")
+        else:
+            # Mac-safe raster + geometry extraction
+            try:
+                from ..config import PROFILES, Profile
+                from ..extract_utils import pdf_to_pngs, detect_doclayout_boxes_pt, pt_to_px, draw_overlay_and_thumb, crop_rois
+                from ..vlm_client import vlm_label_roi
+
+                # Use safe profile by default
+                profile: Profile = PROFILES.get("safe_mac_vlm")
+                if not profile:
+                    raise Exception("Missing safe_mac_vlm profile")
+                print(f"=== Using Mac-safe profile: ai_model={profile.ai_model}, crop_mode={profile.crop_mode} ===")
+
+                # Rasterize PDF to PNGs at 300 DPI
+                raster_dir = pattern_dir / "raster"
+                pngs = pdf_to_pngs(str(pdf_path), str(raster_dir), dpi=300)
+                print(f"=== Rasterized {len(pngs)} pages ===")
+
+                # Extract geometry via PyMuPDF (no heavy models)
+                all_boxes = []
+                # Get page dimensions for thumbnail rendering
+                import fitz
+                doc = fitz.open(str(pdf_path))
+                page = doc[0]
+                page_width_pt = page.rect.width
+                page_height_pt = page.rect.height
+                page_width_px = page_width_pt * 300 / 72
+                page_height_px = page_height_pt * 300 / 72
+                print(f"=== Page size: {page_width_pt}x{page_height_pt} pt, {page_width_px}x{page_height_px} px ===")
+                
+                for i, png in enumerate(pngs):
+                    boxes_pt = detect_doclayout_boxes_pt(str(pdf_path), i)
+                    boxes_px = [pt_to_px(b, dpi=300) for b in boxes_pt]
+                    all_boxes.extend(boxes_px)
+                    # Save overlay/thumbnail for UI
+                    overlay_path = pattern_dir / f"page_{i+1}_overlay.png"
+                    thumb_path = pattern_dir / f"page_{i+1}_thumb.png"
+                    draw_overlay_and_thumb(png, boxes_px, str(overlay_path), str(thumb_path))
+                print(f"=== Detected {len(all_boxes)} geometry boxes ===")
+
+                # Step 2: ROI-only VLM labeling (single-flight)
+                blocks = []
+                elements = []
+                for i, png in enumerate(pngs):
+                    boxes_pt = detect_doclayout_boxes_pt(str(pdf_path), i)
+                    boxes_px = [pt_to_px(b, dpi=300) for b in boxes_pt]
+                    if profile.crop_mode == "boxes_only" and boxes_px:
+                        rois = crop_rois(png, boxes_px)
+                        for (roi_bgr, (x, y, w, h)) in rois:
+                            try:
+                                label = await asyncio.wait_for(vlm_label_roi(roi_bgr, model=profile.vlm, timeout_s=profile.timeout_s), timeout=profile.timeout_s + 5)
+                            except Exception as e:
+                                label = "unknown"
+                            blocks.append({"type": label, "x": x, "y": y, "width": w, "height": h, "page": i + 1})
+                    else:
+                        # No boxes -> no VLM calls
+                        pass
+                print(f"=== Labeled {len(blocks)} blocks via VLM ===")
+            except Exception as e:
+                import traceback
+                print("=== Mac-safe extraction failed ===")
+                traceback.print_exc()
+                raise Exception(f"Mac-safe extraction failed: {e}")
 
         # Step 3: Store in pattern DB for learning
         try:
