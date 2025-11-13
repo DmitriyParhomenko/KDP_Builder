@@ -92,43 +92,49 @@ function App() {
     setLearnProgress('Initializing...');
     setLearnLogs([]);
     addLearnLog(`📂 Selected file: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
-    addLearnLog(`🚀 Starting Learn from PDF flow...`);
+    addLearnLog(`🚀 Starting OpenRouter AI learning (Claude Sonnet 3.5 + Grok Beta)...`);
 
     const formData = new FormData();
     formData.append('file', file);
-    // Add AI parameters as query string (FastAPI supports Query for multipart)
+    // Use OpenRouter for premium AI extraction
     const params = new URLSearchParams({
-      ai_detect: 'true',
-      ai_model: 'both',
-      imgsz: '1536',
-      tile_size: '640',
-      tile_overlap: '160',
+      use_openrouter: 'true',
     });
 
     try {
       setLearnProgress('Uploading PDF...');
-      addLearnLog(`📤 Uploading PDF to /api/ai/learn`);
+      addLearnLog(`📤 Uploading PDF to /api/ai/learn with OpenRouter`);
+      
+      const startTime = Date.now();
       const response = await fetch(`/api/ai/learn?${params}`, {
         method: 'POST',
         body: formData,
       });
-      addLearnLog(`⏳ Server processing...`);
+      
+      addLearnLog(`⏳ Claude Sonnet 3.5 analyzing PDF...`);
       const result = await response.json();
+      const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+      
       if (!result.success) {
         throw new Error(result.error || 'Learning failed');
       }
 
-      // Step-by-step logs based on backend flow
-      addLearnLog(`✅ PDF analysis completed`);
-      addLearnLog(`🤖 AI extraction (DocLayNet + Ollama VLM) completed`);
+      // Step-by-step logs for OpenRouter flow
+      addLearnLog(`✅ Claude analysis completed in ${duration}s`);
+      addLearnLog(`🤖 Extracted ${result.blocks} blocks with AI vision`);
+      addLearnLog(`🎨 Grok generated pattern template`);
       addLearnLog(`💾 Pattern stored in ChromaDB: ${result.pattern_id}`);
-      addLearnLog(`🖼️ Thumbnail generated`);
-      addLearnLog(`📊 Extraction summary: ${result.blocks} blocks, ${result.elements} elements`);
-      addLearnLog(`📝 AI description: ${result.description}`);
+      addLearnLog(`🖼️ Full-size thumbnail generated (1800x2700px)`);
+      addLearnLog(`📝 AI description: ${result.description.substring(0, 100)}...`);
 
-      setLearnProgress(`Done: ${result.blocks} blocks, ${result.elements} elements`);
+      setLearnProgress(`✅ Done: ${result.blocks} blocks extracted in ${duration}s`);
+      
+      // Keep logs visible for 3 seconds
+      setTimeout(() => {
+        setShowLearnLogs(false);
+      }, 3000);
     } catch (error: any) {
-      setLearnProgress(`Error: ${error.message}`);
+      setLearnProgress(`❌ Error: ${error.message}`);
       addLearnLog(`❌ Learning failed: ${error.message}`);
     } finally {
       setIsLearningFromPDF(false);
