@@ -176,12 +176,41 @@ async def learn_from_pdf(
                 # Parse blocks from Claude's analysis (JSON extraction)
                 import json
                 import re
-                json_match = re.search(r'```json\s*(.*?)\s*```', analysis, re.DOTALL)
-                if json_match:
-                    blocks = json.loads(json_match.group(1))
-                else:
-                    # Fallback: try to parse entire response as JSON
-                    blocks = json.loads(analysis)
+                
+                # Try multiple extraction methods
+                blocks = []
+                try:
+                    # Method 1: Look for ```json code block (with optional leading space)
+                    json_match = re.search(r'```json\s*(.*?)\s*```', analysis, re.DOTALL | re.IGNORECASE)
+                    if json_match:
+                        json_str = json_match.group(1).strip()
+                        blocks = json.loads(json_str)
+                        print(f"✅ Extracted JSON from ```json block")
+                    else:
+                        # Method 2: Look for any code block
+                        json_match = re.search(r'```\s*(.*?)\s*```', analysis, re.DOTALL)
+                        if json_match:
+                            json_str = json_match.group(1).strip()
+                            # Remove any language identifier (json, javascript, etc)
+                            if json_str.startswith(('json', 'javascript', 'js')):
+                                json_str = '\n'.join(json_str.split('\n')[1:])
+                            blocks = json.loads(json_str)
+                            print(f"✅ Extracted JSON from ``` block")
+                        else:
+                            # Method 3: Look for JSON array pattern
+                            json_match = re.search(r'\[\s*\{.*?\}\s*\]', analysis, re.DOTALL)
+                            if json_match:
+                                blocks = json.loads(json_match.group(0))
+                                print(f"✅ Extracted JSON from array pattern")
+                            else:
+                                # Method 4: Try entire response
+                                blocks = json.loads(analysis.strip())
+                                print(f"✅ Parsed entire response as JSON")
+                except json.JSONDecodeError as e:
+                    print(f"⚠️ JSON parse error: {e}")
+                    print(f"Claude response preview: {analysis[:500]}")
+                    # Create fallback blocks from text analysis
+                    blocks = []
                 
                 elements = []
                 print(f"=== Extracted {len(blocks)} blocks from Claude ===")
@@ -266,22 +295,39 @@ async def learn_from_pdf(
             }
             description = ai_service.analyze_pdf_pattern({"blocks": blocks, "elements": elements})
             print(f"=== AI description: {description[:100]}... ===")
+            
+            # Determine ai_model and profile name
+            if use_openrouter:
+                ai_model_name = "openrouter"
+                profile_name = "openrouter_claude_grok"
+            else:
+                ai_model_name = profile.ai_model
+                profile_name = "safe_mac_vlm"
+            
+            # Build metadata without None values
+            metadata = {
+                "source": "upload",
+                "ai_model": ai_model_name,
+                "profile": profile_name,
+                "filename": file.filename,
+            }
+            # Add page dimensions if available
+            if 'page_width_px' in locals() and page_width_px is not None:
+                metadata["page_width_px"] = page_width_px
+            if 'page_height_px' in locals() and page_height_px is not None:
+                metadata["page_height_px"] = page_height_px
+            if 'page_width_pt' in locals() and page_width_pt is not None:
+                metadata["page_width_pt"] = page_width_pt
+            if 'page_height_pt' in locals() and page_height_pt is not None:
+                metadata["page_height_pt"] = page_height_pt
+            
             stored_pattern_id = pattern_db.add_extracted_pattern(
                 pattern_id=pattern_id,
                 description=description,
                 blocks=blocks,
                 elements=elements,
                 style_tokens=style_tokens,
-                metadata={
-                    "source": "upload",
-                    "ai_model": profile.ai_model,
-                    "profile": "safe_mac_vlm",
-                    "filename": file.filename,
-                    "page_width_px": page_width_px,
-                    "page_height_px": page_height_px,
-                    "page_width_pt": page_width_pt,
-                    "page_height_pt": page_height_pt,
-                },
+                metadata=metadata,
             )
             print(f"=== Pattern stored with ID: {stored_pattern_id} ===")
         except Exception as e:
