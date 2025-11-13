@@ -131,12 +131,8 @@ async def learn_from_pdf(
         from ..main import STORAGE_DIR
         pattern_dir = STORAGE_DIR / pattern_id
         pattern_dir.mkdir(parents=True, exist_ok=True)
-        analysis_dir = pattern_dir / "analysis"
-        extracted_dir = pattern_dir / "extracted"
-        analysis_dir.mkdir(parents=True, exist_ok=True)
-        extracted_dir.mkdir(parents=True, exist_ok=True)
 
-        # Save uploaded PDF as original.pdf (expected by analyze_pdf)
+        # Save uploaded PDF as original.pdf
         pdf_path = pattern_dir / "original.pdf"
         content = await file.read()
         with open(pdf_path, "wb") as f:

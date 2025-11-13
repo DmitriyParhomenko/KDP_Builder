@@ -71,23 +71,48 @@ def render_thumbnail(
     blocks: List[Dict[str, Any]],
     page_width: float = 432.0,
     page_height: float = 648.0,
-    size: Tuple[int, int] = (216, 324)
+    size: Tuple[int, int] = (1800, 2700)
 ) -> bytes:
     """
-    Render a small PNG thumbnail from elements and blocks.
+    Render a full-size PNG preview from elements and blocks at 300 DPI (6x9 inch = 1800x2700 px).
 
     Args:
         elements: Raw elements list
         blocks: Extracted blocks list
         page_width: Original page width in points
         page_height: Original page height in points
-        size: Thumbnail size in pixels (width, height)
+        size: Thumbnail size in pixels (width, height) - default is 6x9 at 300 DPI
 
     Returns:
         PNG image bytes
     """
     if Image is None or ImageDraw is None:
         raise RuntimeError("PIL is required for thumbnail generation")
+
+    # Detect if blocks use percentage coordinates (0-100) vs points
+    # Claude returns percentages, local pipeline returns points
+    uses_percentages = False
+    if blocks:
+        # Check first block with coordinates
+        for b in blocks:
+            if "x" in b and "width" in b:
+                # If x + width > page_width, likely using percentages
+                if b.get("x", 0) + b.get("width", 0) <= 100:
+                    uses_percentages = True
+                break
+    
+    # Convert percentage coordinates to points if needed
+    if uses_percentages:
+        print(f"🔄 Converting percentage coordinates to points (page: {page_width}x{page_height})")
+        for block in blocks:
+            if "x" in block:
+                block["x"] = (block["x"] / 100.0) * page_width
+            if "y" in block:
+                block["y"] = (block["y"] / 100.0) * page_height
+            if "width" in block:
+                block["width"] = (block["width"] / 100.0) * page_width
+            if "height" in block:
+                block["height"] = (block["height"] / 100.0) * page_height
 
     # Scale to thumbnail size
     scale_x = size[0] / page_width
