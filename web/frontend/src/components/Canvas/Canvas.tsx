@@ -196,19 +196,24 @@ const Canvas = () => {
         // Get group transform
         const groupScaleX = group.scaleX || 1;
         const groupScaleY = group.scaleY || 1;
-        const groupLeft = group.left || 0;
-        const groupTop = group.top || 0;
         
         objects.forEach((obj: any) => {
           if (obj.data?.id) {
             // Track as modified
             recentlyModifiedRef.current.add(obj.data.id);
             
-            // Calculate new position with group transform
-            const objLeft = (obj.left * groupScaleX) + groupLeft + (group.width || 0) / 2;
-            const objTop = (obj.top * groupScaleY) + groupTop + (group.height || 0) / 2;
+            // Get object's absolute position after group transform
+            // Use aCoords for accurate position after scaling/moving
+            const matrix = group.calcTransformMatrix();
+            const objectPoint = fabric.util.transformPoint(
+              { x: obj.left, y: obj.top },
+              matrix
+            );
             
-            // Calculate new size with group scale
+            const objLeft = objectPoint.x;
+            const objTop = objectPoint.y;
+            
+            // Calculate new size with combined scales
             const objWidth = (obj.width || 0) * (obj.scaleX || 1) * groupScaleX;
             const objHeight = (obj.height || 0) * (obj.scaleY || 1) * groupScaleY;
             
