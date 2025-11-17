@@ -212,14 +212,41 @@ const Canvas = () => {
             const objWidth = (obj.width || 0) * (obj.scaleX || 1) * groupScaleX;
             const objHeight = (obj.height || 0) * (obj.scaleY || 1) * groupScaleY;
             
-            updateElement(obj.data.id, {
+            const updates: any = {
               x: Math.round(objLeft),
               y: Math.round(objTop),
               width: Math.max(1, Math.round(objWidth)),
               height: Math.max(1, Math.round(objHeight)),
-            });
+            };
+            
+            // For text objects, scale the font size
+            if (obj.type === 'i-text' || obj.type === 'text') {
+              const textObj = obj as fabric.IText;
+              const originalFontSize = textObj.fontSize || 16;
+              const avgGroupScale = (groupScaleX + groupScaleY) / 2;
+              const newFontSize = Math.round(originalFontSize * avgGroupScale);
+              
+              updates.properties = {
+                text: textObj.text || '',
+                fontSize: newFontSize,
+                fontFamily: textObj.fontFamily || 'Arial',
+                color: textObj.fill || '#000000',
+              };
+              
+              // Reset text scale after applying to font size
+              textObj.set({
+                fontSize: newFontSize,
+                scaleX: 1,
+                scaleY: 1,
+              });
+            }
+            
+            updateElement(obj.data.id, updates);
           }
         });
+        
+        // Re-render canvas to show updated text sizes
+        canvas.renderAll();
         
         // Reset flag and clear tracking after delay
         setTimeout(() => {
