@@ -2,7 +2,7 @@
  * Canvas Component - Main editing canvas using Fabric.js
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { fabric } from 'fabric';
 import { useDesignStore } from '../../store/designStore';
 
@@ -12,6 +12,11 @@ const Canvas = () => {
   const fabricRef = useRef<fabric.Canvas | null>(null);
   const isSyncingRef = useRef(false); // Prevent infinite loops
   const recentlyModifiedRef = useRef<Set<string>>(new Set()); // Track recently modified objects
+  
+  // Zoom and pan state
+  const [zoom, setZoom] = useState(1);
+  const [isPanning, setIsPanning] = useState(false);
+  const panStartRef = useRef<{ x: number; y: number } | null>(null);
   
   const { design, currentPage, activeTool, addElement, updateElement, selectElement } = useDesignStore();
 
@@ -84,6 +89,78 @@ const Canvas = () => {
     });
 
     fabricRef.current = canvas;
+
+    // Mouse wheel zoom
+    canvas.on('mouse:wheel', (opt: any) => {
+      const delta = opt.e.deltaY;
+      let newZoom = canvas.getZoom();
+      newZoom *= 0.999 ** delta;
+      if (newZoom > 5) newZoom = 5;
+      if (newZoom < 0.1) newZoom = 0.1;
+      canvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, newZoom);
+      setZoom(newZoom);
+      opt.e.preventDefault();
+      opt.e.stopPropagation();
+    });
+
+    // Pan with spacebar + drag
+    let isPanningLocal = false;
+    let lastPosX = 0;
+    let lastPosY = 0;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && !isPanningLocal) {
+        isPanningLocal = true;
+        setIsPanning(true);
+        canvas.selection = false;
+        canvas.defaultCursor = 'grab';
+        canvas.hoverCursor = 'grab';
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        isPanningLocal = false;
+        setIsPanning(false);
+        canvas.selection = true;
+        canvas.defaultCursor = 'default';
+        canvas.hoverCursor = 'move';
+      }
+    };
+
+    canvas.on('mouse:down', (opt: any) => {
+      if (isPanningLocal) {
+        canvas.isDragging = true;
+        canvas.selection = false;
+        lastPosX = opt.e.clientX;
+        lastPosY = opt.e.clientY;
+        canvas.defaultCursor = 'grabbing';
+      }
+    });
+
+    canvas.on('mouse:move', (opt: any) => {
+      if (canvas.isDragging && isPanningLocal) {
+        const vpt = canvas.viewportTransform;
+        if (vpt) {
+          vpt[4] += opt.e.clientX - lastPosX;
+          vpt[5] += opt.e.clientY - lastPosY;
+          canvas.requestRenderAll();
+          lastPosX = opt.e.clientX;
+          lastPosY = opt.e.clientY;
+        }
+      }
+    });
+
+    canvas.on('mouse:up', () => {
+      canvas.setViewportTransform(canvas.viewportTransform);
+      canvas.isDragging = false;
+      if (isPanningLocal) {
+        canvas.defaultCursor = 'grab';
+      }
+    });
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
 
     // Add grid
     addGrid(canvas, design.page_width, design.page_height);
@@ -336,6 +413,8 @@ const Canvas = () => {
 
     // Cleanup
     return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
       canvas.dispose();
     };
   }, [design, currentPage]);
@@ -788,6 +867,47 @@ const Canvas = () => {
     });
   };
 
+  // Zoom handlers
+  const handleZoomIn = () => {
+    if (!fabricRef.current) return;
+    const canvas = fabricRef.current;
+    let newZoom = canvas.getZoom() * 1.1;
+    if (newZoom > 5) newZoom = 5;
+    canvas.setZoom(newZoom);
+    setZoom(newZoom);
+    canvas.requestRenderAll();
+  };
+
+  const handleZoomOut = () => {
+    if (!fabricRef.current) return;
+    const canvas = fabricRef.current;
+    let newZoom = canvas.getZoom() / 1.1;
+    if (newZoom < 0.1) newZoom = 0.1;
+    canvas.setZoom(newZoom);
+    setZoom(newZoom);
+    canvas.requestRenderAll();
+  };
+
+  const handleFitToScreen = () => {
+    if (!fabricRef.current || !containerRef.current || !design) return;
+    const canvas = fabricRef.current;
+    const container = containerRef.current;
+    
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+    const canvasWidth = design.page_width;
+    const canvasHeight = design.page_height;
+    
+    const scaleX = (containerWidth * 0.9) / canvasWidth;
+    const scaleY = (containerHeight * 0.9) / canvasHeight;
+    const newZoom = Math.min(scaleX, scaleY);
+    
+    canvas.setZoom(newZoom);
+    setZoom(newZoom);
+    canvas.setViewportTransform([newZoom, 0, 0, newZoom, 0, 0]);
+    canvas.requestRenderAll();
+  };
+
   return (
     <div 
       ref={containerRef}
@@ -805,26 +925,38 @@ const Canvas = () => {
       {/* Zoom controls (Figma-style) */}
       <div className="absolute bottom-4 right-4 flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-2 shadow-lg">
         <button 
-          className="text-white hover:text-blue-400 text-sm font-medium"
+          onClick={handleZoomOut}
+          className="text-white hover:text-blue-400 text-sm font-medium px-2"
           title="Zoom out"
         >
           −
         </button>
-        <span className="text-white text-xs font-mono">100%</span>
+        <span className="text-white text-xs font-mono min-w-[45px] text-center">
+          {Math.round(zoom * 100)}%
+        </span>
         <button 
-          className="text-white hover:text-blue-400 text-sm font-medium"
+          onClick={handleZoomIn}
+          className="text-white hover:text-blue-400 text-sm font-medium px-2"
           title="Zoom in"
         >
           +
         </button>
         <div className="w-px h-4 bg-gray-600 mx-1"></div>
         <button 
-          className="text-white hover:text-blue-400 text-xs"
+          onClick={handleFitToScreen}
+          className="text-white hover:text-blue-400 text-xs px-2"
           title="Fit to screen"
         >
           Fit
         </button>
       </div>
+      
+      {/* Pan hint */}
+      {isPanning && (
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg text-sm">
+          Hold spacebar and drag to pan
+        </div>
+      )}
     </div>
   );
 };
