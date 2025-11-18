@@ -1,20 +1,27 @@
 import { describe, test, expect, beforeEach, vi } from 'vitest';
-import axios from 'axios';
+
+// Mock axios module with factory
+vi.mock('axios', () => {
+  const mockInstance = {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    delete: vi.fn(),
+  };
+  
+  return {
+    default: {
+      create: vi.fn(() => mockInstance),
+    },
+  };
+});
+
+// Import client after mock is set up
 import { designsAPI, aiAPI, exportAPI } from './client';
+import axios from 'axios';
 
-// Mock axios
-vi.mock('axios');
-
-// Create mock axios instance
-const mockAxiosInstance = {
-  get: vi.fn(),
-  post: vi.fn(),
-  put: vi.fn(),
-  delete: vi.fn(),
-};
-
-// Mock axios.create to return our mock instance
-(axios.create as any) = vi.fn(() => mockAxiosInstance);
+// Get reference to the mock instance
+const mockAxiosInstance = (axios.create as any)();
 
 describe('Designs API', () => {
   beforeEach(() => {
@@ -25,20 +32,22 @@ describe('Designs API', () => {
     test('creates new design with correct payload', async () => {
       const mockResponse = {
         data: {
-          id: 'design-1',
-          name: 'Test Design',
-          page_width: 432,
-          page_height: 648,
-          pages: [
-            {
-              page_number: 1,
-              elements: [],
-              background_color: '#ffffff',
-            },
-          ],
-          created_at: '2024-01-01T00:00:00Z',
-          updated_at: '2024-01-01T00:00:00Z',
-          metadata: {},
+          design: {
+            id: 'design-1',
+            name: 'Test Design',
+            page_width: 432,
+            page_height: 648,
+            pages: [
+              {
+                page_number: 1,
+                elements: [],
+                background_color: '#ffffff',
+              },
+            ],
+            created_at: '2024-01-01T00:00:00Z',
+            updated_at: '2024-01-01T00:00:00Z',
+            metadata: {},
+          },
         },
       };
 
@@ -58,7 +67,7 @@ describe('Designs API', () => {
         num_pages: 1,
       });
 
-      expect(result).toEqual(mockResponse.data);
+      expect(result).toEqual(mockResponse.data.design);
     });
 
     test('throws error on API failure', async () => {
@@ -102,7 +111,7 @@ describe('Designs API', () => {
 
       const result = await designsAPI.list();
 
-      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/api/designs');
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/designs/');
       expect(result).toEqual(mockResponse.data.designs);
     });
   });
@@ -111,14 +120,16 @@ describe('Designs API', () => {
     test('fetches single design by id', async () => {
       const mockResponse = {
         data: {
-          id: 'design-1',
-          name: 'Test Design',
-          page_width: 432,
-          page_height: 648,
-          pages: [],
-          created_at: '2024-01-01T00:00:00Z',
-          updated_at: '2024-01-01T00:00:00Z',
-          metadata: {},
+          design: {
+            id: 'design-1',
+            name: 'Test Design',
+            page_width: 432,
+            page_height: 648,
+            pages: [],
+            created_at: '2024-01-01T00:00:00Z',
+            updated_at: '2024-01-01T00:00:00Z',
+            metadata: {},
+          },
         },
       };
 
@@ -126,8 +137,8 @@ describe('Designs API', () => {
 
       const result = await designsAPI.get('design-1');
 
-      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/api/designs/design-1');
-      expect(result).toEqual(mockResponse.data);
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/designs/design-1');
+      expect(result).toEqual(mockResponse.data.design);
     });
   });
 
@@ -135,14 +146,16 @@ describe('Designs API', () => {
     test('updates design with partial data', async () => {
       const mockResponse = {
         data: {
-          id: 'design-1',
-          name: 'Updated Design',
-          page_width: 432,
-          page_height: 648,
-          pages: [],
-          created_at: '2024-01-01T00:00:00Z',
-          updated_at: '2024-01-02T00:00:00Z',
-          metadata: {},
+          design: {
+            id: 'design-1',
+            name: 'Updated Design',
+            page_width: 432,
+            page_height: 648,
+            pages: [],
+            created_at: '2024-01-01T00:00:00Z',
+            updated_at: '2024-01-02T00:00:00Z',
+            metadata: {},
+          },
         },
       };
 
@@ -152,10 +165,10 @@ describe('Designs API', () => {
         name: 'Updated Design',
       });
 
-      expect(mockAxiosInstance.put).toHaveBeenCalledWith('/api/designs/design-1', {
+      expect(mockAxiosInstance.put).toHaveBeenCalledWith('/designs/design-1', {
         name: 'Updated Design',
       });
-      expect(result).toEqual(mockResponse.data);
+      expect(result).toEqual(mockResponse.data.design);
     });
   });
 
@@ -165,7 +178,7 @@ describe('Designs API', () => {
 
       await designsAPI.delete('design-1');
 
-      expect(mockAxiosInstance.delete).toHaveBeenCalledWith('/api/designs/design-1');
+      expect(mockAxiosInstance.delete).toHaveBeenCalledWith('/designs/design-1');
     });
   });
 });
