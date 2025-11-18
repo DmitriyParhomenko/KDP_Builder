@@ -325,21 +325,21 @@ function App() {
       {/* Main Editor Area */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar - Toolbar */}
-        <div className="w-16 bg-gray-800 border-r border-gray-700">
+        <div className="w-14 bg-gray-800 border-r border-gray-700 flex-shrink-0">
           <Toolbar />
         </div>
 
-        {/* Center - Canvas */}
-        <div className="flex-1 bg-gray-900 overflow-auto">
+        {/* Center - Canvas (Figma-style infinite workspace) */}
+        <div className="flex-1 bg-gray-900 relative overflow-hidden">
           {design && <Canvas />}
         </div>
 
         {/* Right Sidebar - Properties & Layers */}
-        <div className="w-80 bg-gray-800 border-l border-gray-700 flex flex-col">
-          <div className="flex-1 overflow-auto">
+        <div className="w-72 bg-gray-800 border-l border-gray-700 flex flex-col flex-shrink-0">
+          <div className="flex-1 overflow-y-auto">
             <Properties />
           </div>
-          <div className="h-64 border-t border-gray-700 overflow-auto">
+          <div className="h-56 border-t border-gray-700 overflow-y-auto">
             <Layers />
           </div>
         </div>

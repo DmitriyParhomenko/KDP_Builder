@@ -7,6 +7,7 @@ import { fabric } from 'fabric';
 import { useDesignStore } from '../../store/designStore';
 
 const Canvas = () => {
+  const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricRef = useRef<fabric.Canvas | null>(null);
   const isSyncingRef = useRef(false); // Prevent infinite loops
@@ -788,9 +789,41 @@ const Canvas = () => {
   };
 
   return (
-    <div className="flex items-center justify-center p-8">
-      <div className="shadow-2xl">
+    <div 
+      ref={containerRef}
+      className="w-full h-full flex items-center justify-center bg-gray-900 relative overflow-auto"
+      style={{
+        backgroundImage: 'radial-gradient(circle, #374151 1px, transparent 1px)',
+        backgroundSize: '20px 20px',
+      }}
+    >
+      {/* Canvas wrapper with shadow */}
+      <div className="shadow-2xl bg-white">
         <canvas ref={canvasRef} />
+      </div>
+      
+      {/* Zoom controls (Figma-style) */}
+      <div className="absolute bottom-4 right-4 flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-2 shadow-lg">
+        <button 
+          className="text-white hover:text-blue-400 text-sm font-medium"
+          title="Zoom out"
+        >
+          −
+        </button>
+        <span className="text-white text-xs font-mono">100%</span>
+        <button 
+          className="text-white hover:text-blue-400 text-sm font-medium"
+          title="Zoom in"
+        >
+          +
+        </button>
+        <div className="w-px h-4 bg-gray-600 mx-1"></div>
+        <button 
+          className="text-white hover:text-blue-400 text-xs"
+          title="Fit to screen"
+        >
+          Fit
+        </button>
       </div>
     </div>
   );
