@@ -21,28 +21,51 @@ const Canvas = () => {
   const { design, currentPage, activeTool, addElement, updateElement, selectElement } = useDesignStore();
 
   useEffect(() => {
-    if (!canvasRef.current || !design) return;
+    if (!canvasRef.current || !design || !containerRef.current) return;
 
-    // Initialize Fabric canvas
+    // Create a large canvas workspace (much bigger than the page)
+    // This creates an infinite canvas feel like Figma
+    const workspaceWidth = Math.max(design.page_width * 3, 3000);
+    const workspaceHeight = Math.max(design.page_height * 3, 3000);
+
+    // Initialize Fabric canvas with large workspace
     const canvas = new fabric.Canvas(canvasRef.current, {
-      width: design.page_width,
-      height: design.page_height,
-      backgroundColor: '#ffffff',
+      width: workspaceWidth,
+      height: workspaceHeight,
+      backgroundColor: 'transparent', // Transparent so we see the dotted background
     });
 
+    // Add white page rectangle as a background object (non-selectable)
+    const pageRect = new fabric.Rect({
+      left: (workspaceWidth - design.page_width) / 2,
+      top: (workspaceHeight - design.page_height) / 2,
+      width: design.page_width,
+      height: design.page_height,
+      fill: '#ffffff',
+      selectable: false,
+      evented: false,
+      excludeFromExport: true,
+    });
+    canvas.add(pageRect);
+    canvas.sendToBack(pageRect);
+
+    // Page position in workspace
+    const pageLeft = (workspaceWidth - design.page_width) / 2;
+    const pageTop = (workspaceHeight - design.page_height) / 2;
+    
     // Prevent moving/scaling outside margins (red border)
     const margin = 36;
     const pageW = design.page_width;
     const pageH = design.page_height;
 
-    // Clamp helper for single object
+    // Clamp helper for single object (relative to page position in workspace)
     const clampObjectWithinMargins = (o: any) => {
       const w = (o.width || 0) * (o.scaleX || 1);
       const h = (o.height || 0) * (o.scaleY || 1);
-      const minLeft = margin;
-      const minTop = margin;
-      const maxLeft = pageW - margin - w;
-      const maxTop = pageH - margin - h;
+      const minLeft = pageLeft + margin;
+      const minTop = pageTop + margin;
+      const maxLeft = pageLeft + pageW - margin - w;
+      const maxTop = pageTop + pageH - margin - h;
       if (typeof o.left === 'number') o.left = Math.min(Math.max(o.left, minLeft), Math.max(minLeft, maxLeft));
       if (typeof o.top === 'number') o.top = Math.min(Math.max(o.top, minTop), Math.max(minTop, maxTop));
     };
@@ -51,10 +74,10 @@ const Canvas = () => {
     const clampGroupWithinMargins = (g: fabric.ActiveSelection) => {
       const gW = (g.getScaledWidth && g.getScaledWidth()) || ((g.width || 0) * (g.scaleX || 1));
       const gH = (g.getScaledHeight && g.getScaledHeight()) || ((g.height || 0) * (g.scaleY || 1));
-      const minLeft = margin;
-      const minTop = margin;
-      const maxLeft = pageW - margin - gW;
-      const maxTop = pageH - margin - gH;
+      const minLeft = pageLeft + margin;
+      const minTop = pageTop + margin;
+      const maxLeft = pageLeft + pageW - margin - gW;
+      const maxTop = pageTop + pageH - margin - gH;
       if (typeof g.left === 'number') g.left = Math.min(Math.max(g.left, minLeft), Math.max(minLeft, maxLeft));
       if (typeof g.top === 'number') g.top = Math.min(Math.max(g.top, minTop), Math.max(minTop, maxTop));
     };
@@ -162,14 +185,14 @@ const Canvas = () => {
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
 
-    // Add grid
-    addGrid(canvas, design.page_width, design.page_height);
+    // Add grid (positioned on the white page)
+    addGrid(canvas, design.page_width, design.page_height, pageLeft, pageTop);
 
-    // Add margins guide
-    addMarginsGuide(canvas, design.page_width, design.page_height);
+    // Add margins guide (positioned on the white page)
+    addMarginsGuide(canvas, design.page_width, design.page_height, pageLeft, pageTop);
 
-    // Load existing elements
-    loadElements(canvas);
+    // Load existing elements (positioned on the white page)
+    loadElements(canvas, pageLeft, pageTop);
 
     // Note: Removed automatic overlap resolution to allow free object placement
     // Objects can now overlap without jumping when released
@@ -586,7 +609,7 @@ const Canvas = () => {
     canvas.renderAll();
   }, [design, currentPage]);
 
-  const addGrid = (canvas: fabric.Canvas, width: number, height: number) => {
+  const addGrid = (canvas: fabric.Canvas, width: number, height: number, offsetX: number, offsetY: number) => {
     const gridSize = 36; // 0.5 inch
     const options = {
       stroke: '#e0e0e0',
@@ -597,21 +620,21 @@ const Canvas = () => {
 
     // Vertical lines
     for (let i = 0; i <= width; i += gridSize) {
-      canvas.add(new fabric.Line([i, 0, i, height], options));
+      canvas.add(new fabric.Line([offsetX + i, offsetY, offsetX + i, offsetY + height], options));
     }
 
     // Horizontal lines
     for (let i = 0; i <= height; i += gridSize) {
-      canvas.add(new fabric.Line([0, i, width, i], options));
+      canvas.add(new fabric.Line([offsetX, offsetY + i, offsetX + width, offsetY + i], options));
     }
   };
 
-  const addMarginsGuide = (canvas: fabric.Canvas, width: number, height: number) => {
+  const addMarginsGuide = (canvas: fabric.Canvas, width: number, height: number, offsetX: number, offsetY: number) => {
     const margin = 36; // 0.5 inch margin
     
     const rect = new fabric.Rect({
-      left: margin,
-      top: margin,
+      left: offsetX + margin,
+      top: offsetY + margin,
       width: width - (2 * margin),
       height: height - (2 * margin),
       fill: 'transparent',
@@ -625,7 +648,7 @@ const Canvas = () => {
     canvas.add(rect);
   };
 
-  const loadElements = (canvas: fabric.Canvas) => {
+  const loadElements = (canvas: fabric.Canvas, offsetX: number, offsetY: number) => {
     if (!design) return;
 
     const page = design.pages[currentPage];
@@ -644,8 +667,8 @@ const Canvas = () => {
               (element.properties.align || '').toLowerCase()
             ) ? (element.properties.align || 'left') : 'left';
             obj = new fabric.IText(element.properties.text || 'Text', {
-              left: element.x,
-              top: element.y,
+              left: offsetX + element.x,
+              top: offsetY + element.y,
               fontSize: element.properties.fontSize || 12,
               fontFamily: element.properties.fontFamily || 'Helvetica',
               fill: element.properties.color || '#000000',
@@ -666,8 +689,8 @@ const Canvas = () => {
 
         case 'rectangle':
           obj = new fabric.Rect({
-            left: element.x,
-            top: element.y,
+            left: offsetX + element.x,
+            top: offsetY + element.y,
             width: element.width,
             height: element.height,
             fill: element.properties.fill || 'transparent',
@@ -678,8 +701,8 @@ const Canvas = () => {
 
         case 'circle':
           obj = new fabric.Circle({
-            left: element.x,
-            top: element.y,
+            left: offsetX + element.x,
+            top: offsetY + element.y,
             radius: Math.min(element.width, element.height) / 2,
             fill: element.properties.fill || 'transparent',
             stroke: element.properties.stroke || '#000000',
@@ -688,7 +711,7 @@ const Canvas = () => {
           break;
 
         case 'line':
-          obj = new fabric.Line([element.x, element.y, element.x + element.width, element.y + element.height], {
+          obj = new fabric.Line([offsetX + element.x, offsetY + element.y, offsetX + element.x + element.width, offsetY + element.y + element.height], {
             stroke: element.properties.stroke || '#000000',
             strokeWidth: element.properties.strokeWidth || 1,
             lockScalingY: true,
@@ -917,10 +940,8 @@ const Canvas = () => {
         backgroundSize: '20px 20px',
       }}
     >
-      {/* Canvas wrapper with shadow */}
-      <div className="shadow-2xl bg-white">
-        <canvas ref={canvasRef} />
-      </div>
+      {/* Canvas - the white page is rendered inside */}
+      <canvas ref={canvasRef} />
       
       {/* Zoom controls (Figma-style) */}
       <div className="absolute bottom-4 right-4 flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-2 shadow-lg">
