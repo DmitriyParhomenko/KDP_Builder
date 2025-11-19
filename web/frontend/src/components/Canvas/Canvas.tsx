@@ -743,9 +743,16 @@ const Canvas = () => {
   };
 
   const addTextElement = (canvas: fabric.Canvas) => {
+    if (!design) return;
+    // Calculate page offset in workspace
+    const workspaceWidth = Math.max(design.page_width * 3, 3000);
+    const workspaceHeight = Math.max(design.page_height * 3, 3000);
+    const pageLeft = (workspaceWidth - design.page_width) / 2;
+    const pageTop = (workspaceHeight - design.page_height) / 2;
+    
     const text = new fabric.IText('Double-click to edit', {
-      left: 100,
-      top: 100,
+      left: pageLeft + 100,
+      top: pageTop + 100,
       fontSize: 24,
       fontFamily: 'Helvetica',
       fill: '#000000',
@@ -784,9 +791,16 @@ const Canvas = () => {
   };
 
   const addRectangleElement = (canvas: fabric.Canvas) => {
+    if (!design) return;
+    // Calculate page offset in workspace
+    const workspaceWidth = Math.max(design.page_width * 3, 3000);
+    const workspaceHeight = Math.max(design.page_height * 3, 3000);
+    const pageLeft = (workspaceWidth - design.page_width) / 2;
+    const pageTop = (workspaceHeight - design.page_height) / 2;
+    
     const rect = new fabric.Rect({
-      left: 100,
-      top: 100,
+      left: pageLeft + 100,
+      top: pageTop + 100,
       width: 100,
       height: 100,
       fill: 'transparent',
@@ -817,9 +831,16 @@ const Canvas = () => {
   };
 
   const addCircleElement = (canvas: fabric.Canvas) => {
+    if (!design) return;
+    // Calculate page offset in workspace
+    const workspaceWidth = Math.max(design.page_width * 3, 3000);
+    const workspaceHeight = Math.max(design.page_height * 3, 3000);
+    const pageLeft = (workspaceWidth - design.page_width) / 2;
+    const pageTop = (workspaceHeight - design.page_height) / 2;
+    
     const circle = new fabric.Circle({
-      left: 100,
-      top: 100,
+      left: pageLeft + 100,
+      top: pageTop + 100,
       radius: 50,
       fill: 'transparent',
       stroke: '#000000',
@@ -849,7 +870,14 @@ const Canvas = () => {
   };
 
   const addLineElement = (canvas: fabric.Canvas) => {
-    const line = new fabric.Line([100, 100, 200, 100], {
+    if (!design) return;
+    // Calculate page offset in workspace
+    const workspaceWidth = Math.max(design.page_width * 3, 3000);
+    const workspaceHeight = Math.max(design.page_height * 3, 3000);
+    const pageLeft = (workspaceWidth - design.page_width) / 2;
+    const pageTop = (workspaceHeight - design.page_height) / 2;
+    
+    const line = new fabric.Line([pageLeft + 100, pageTop + 100, pageLeft + 200, pageTop + 100], {
       stroke: '#000000',
       strokeWidth: 2,
       lockScalingY: true, // Prevent vertical scaling
