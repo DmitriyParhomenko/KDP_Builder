@@ -95,7 +95,7 @@ EOF
 git add README_PUBLIC.md 2>/dev/null || true
 
 # Commit public version
-git commit -m "Public release - light version (frontend only)" --allow-empty
+git commit -m "Public release - light version" --allow-empty
 
 # Push to public
 git push public public-temp:main --force

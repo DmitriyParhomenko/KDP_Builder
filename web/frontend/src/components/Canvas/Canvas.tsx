@@ -23,6 +23,14 @@ const Canvas = () => {
   useEffect(() => {
     if (!canvasRef.current || !design || !containerRef.current) return;
 
+    // Save current zoom and viewport if canvas exists (to preserve on re-render)
+    let savedZoom = 1.0;
+    let savedViewport: number[] | null = null;
+    if (fabricRef.current) {
+      savedZoom = fabricRef.current.getZoom();
+      savedViewport = fabricRef.current.viewportTransform ? [...fabricRef.current.viewportTransform] : null;
+    }
+
     // Get container dimensions
     const containerWidth = containerRef.current?.clientWidth || 800;
     const containerHeight = containerRef.current?.clientHeight || 600;
@@ -192,17 +200,25 @@ const Canvas = () => {
     // Load existing elements (positioned on the white page)
     loadElements(canvas, pageLeft, pageTop);
 
-    // Center the page in viewport on initial load at 100% zoom
-    const initialZoom = 1.0; // 100% zoom
-    
-    // Calculate center position to show the white page in the middle of viewport
-    // Page is at (0,0) so center it in the container
-    const centerX = containerWidth / 2 - design.page_width / 2;
-    const centerY = containerHeight / 2 - design.page_height / 2;
-    
-    canvas.setZoom(initialZoom);
-    setZoom(initialZoom);
-    canvas.setViewportTransform([initialZoom, 0, 0, initialZoom, centerX, centerY]);
+    // Restore saved zoom and viewport, or center at 100% if first load
+    if (savedViewport && savedZoom !== 1.0) {
+      // Restore previous zoom and pan
+      canvas.setZoom(savedZoom);
+      setZoom(savedZoom);
+      canvas.setViewportTransform(savedViewport);
+    } else {
+      // Center the page in viewport on initial load at 100% zoom
+      const initialZoom = 1.0; // 100% zoom
+      
+      // Calculate center position to show the white page in the middle of viewport
+      // Page is at (0,0) so center it in the container
+      const centerX = containerWidth / 2 - design.page_width / 2;
+      const centerY = containerHeight / 2 - design.page_height / 2;
+      
+      canvas.setZoom(initialZoom);
+      setZoom(initialZoom);
+      canvas.setViewportTransform([initialZoom, 0, 0, initialZoom, centerX, centerY]);
+    }
 
     // Note: Removed automatic overlap resolution to allow free object placement
     // Objects can now overlap without jumping when released
@@ -631,6 +647,18 @@ const Canvas = () => {
     canvas.renderAll();
   }, [design, currentPage]);
 
+  // Force render after any design change to ensure visibility
+  useEffect(() => {
+    if (!fabricRef.current || !design) return;
+    
+    // Use requestAnimationFrame to render after sync effect completes
+    requestAnimationFrame(() => {
+      if (fabricRef.current) {
+        fabricRef.current.renderAll();
+      }
+    });
+  }, [design]);
+
   const addGrid = (canvas: fabric.Canvas, width: number, height: number, offsetX: number, offsetY: number) => {
     const gridSize = 36; // 0.5 inch
     const options = {
@@ -818,11 +846,15 @@ const Canvas = () => {
       },
     });
     
-    // Clear recently modified flag after delay
+    // Clear syncing flag after short delay to allow property updates
+    setTimeout(() => {
+      isSyncingRef.current = false;
+    }, 100);
+    
+    // Clear recently modified flag after short delay
     setTimeout(() => {
       recentlyModifiedRef.current.delete(id);
-      isSyncingRef.current = false;
-    }, 1000);
+    }, 200);
   };
 
   const addRectangleElement = (canvas: fabric.Canvas) => {
@@ -871,11 +903,15 @@ const Canvas = () => {
       },
     });
     
-    // Clear recently modified flag after delay
+    // Clear syncing flag after short delay to allow property updates
+    setTimeout(() => {
+      isSyncingRef.current = false;
+    }, 100);
+    
+    // Clear recently modified flag after short delay
     setTimeout(() => {
       recentlyModifiedRef.current.delete(id);
-      isSyncingRef.current = false;
-    }, 1000);
+    }, 200);
   };
 
   const addCircleElement = (canvas: fabric.Canvas) => {
@@ -923,11 +959,15 @@ const Canvas = () => {
       },
     });
     
-    // Clear recently modified flag after delay
+    // Clear syncing flag after short delay to allow property updates
+    setTimeout(() => {
+      isSyncingRef.current = false;
+    }, 100);
+    
+    // Clear recently modified flag after short delay
     setTimeout(() => {
       recentlyModifiedRef.current.delete(id);
-      isSyncingRef.current = false;
-    }, 1000);
+    }, 200);
   };
 
   const addLineElement = (canvas: fabric.Canvas) => {
@@ -985,11 +1025,15 @@ const Canvas = () => {
       },
     });
     
-    // Clear recently modified flag after delay
+    // Clear syncing flag after short delay to allow property updates
+    setTimeout(() => {
+      isSyncingRef.current = false;
+    }, 100);
+    
+    // Clear recently modified flag after short delay
     setTimeout(() => {
       recentlyModifiedRef.current.delete(id);
-      isSyncingRef.current = false;
-    }, 1000);
+    }, 200);
   };
 
   // Zoom handlers
