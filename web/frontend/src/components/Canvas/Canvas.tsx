@@ -23,22 +23,20 @@ const Canvas = () => {
   useEffect(() => {
     if (!canvasRef.current || !design || !containerRef.current) return;
 
-    // Create a large canvas workspace (much bigger than the page)
-    // This creates an infinite canvas feel like Figma
-    const workspaceWidth = Math.max(design.page_width * 3, 3000);
-    const workspaceHeight = Math.max(design.page_height * 3, 3000);
+    // Get container dimensions
+    const containerWidth = containerRef.current?.clientWidth || 800;
+    const containerHeight = containerRef.current?.clientHeight || 600;
 
-    // Initialize Fabric canvas with large workspace
     const canvas = new fabric.Canvas(canvasRef.current, {
-      width: workspaceWidth,
-      height: workspaceHeight,
-      backgroundColor: 'transparent', // Transparent so we see the dotted background
+      width: containerWidth,
+      height: containerHeight,
+      backgroundColor: 'transparent',
     });
 
-    // Add white page rectangle as a background object (non-selectable)
+    // Add white page rectangle - will be centered via viewport transform
     const pageRect = new fabric.Rect({
-      left: (workspaceWidth - design.page_width) / 2,
-      top: (workspaceHeight - design.page_height) / 2,
+      left: 0,
+      top: 0,
       width: design.page_width,
       height: design.page_height,
       fill: '#ffffff',
@@ -49,9 +47,9 @@ const Canvas = () => {
     canvas.add(pageRect);
     canvas.sendToBack(pageRect);
 
-    // Page position in workspace
-    const pageLeft = (workspaceWidth - design.page_width) / 2;
-    const pageTop = (workspaceHeight - design.page_height) / 2;
+    // Page starts at origin (0,0)
+    const pageLeft = 0;
+    const pageTop = 0;
     
     // Prevent moving/scaling outside margins (red border)
     const margin = 36;
@@ -194,6 +192,18 @@ const Canvas = () => {
     // Load existing elements (positioned on the white page)
     loadElements(canvas, pageLeft, pageTop);
 
+    // Center the page in viewport on initial load at 100% zoom
+    const initialZoom = 1.0; // 100% zoom
+    
+    // Calculate center position to show the white page in the middle of viewport
+    // Page is at (0,0) so center it in the container
+    const centerX = containerWidth / 2 - design.page_width / 2;
+    const centerY = containerHeight / 2 - design.page_height / 2;
+    
+    canvas.setZoom(initialZoom);
+    setZoom(initialZoom);
+    canvas.setViewportTransform([initialZoom, 0, 0, initialZoom, centerX, centerY]);
+
     // Note: Removed automatic overlap resolution to allow free object placement
     // Objects can now overlap without jumping when released
 
@@ -286,7 +296,11 @@ const Canvas = () => {
 
     // Handle object modification (move, resize, rotate, text editing complete)
     canvas.on('object:modified', (e: any) => {
-      if (!e.target || isSyncingRef.current) return;
+      if (!e.target || isSyncingRef.current || !design) return;
+      
+      // Page is at origin (0,0) so no offset needed
+      const pageOffsetLeft = 0;
+      const pageOffsetTop = 0;
       
       // Handle group selection (multiple objects moved/resized together)
       if (e.target.type === 'activeSelection') {
@@ -318,9 +332,13 @@ const Canvas = () => {
             const objWidth = (obj.width || 0) * (obj.scaleX || 1) * groupScaleX;
             const objHeight = (obj.height || 0) * (obj.scaleY || 1) * groupScaleY;
             
+            // Convert absolute canvas position to page-relative position
+            const relativeX = Math.round(objLeft - pageOffsetLeft);
+            const relativeY = Math.round(objTop - pageOffsetTop);
+            
             const updates: any = {
-              x: Math.round(objLeft),
-              y: Math.round(objTop),
+              x: relativeX,
+              y: relativeY,
               width: Math.max(1, Math.round(objWidth)),
               height: Math.max(1, Math.round(objHeight)),
             };
@@ -374,9 +392,13 @@ const Canvas = () => {
         const calculatedWidth = (e.target.width || 0) * (e.target.scaleX || 1);
         const calculatedHeight = (e.target.height || 0) * (e.target.scaleY || 1);
         
+        // Convert absolute canvas position to page-relative position
+        const relativeX = Math.round((e.target.left || 0) - pageOffsetLeft);
+        const relativeY = Math.round((e.target.top || 0) - pageOffsetTop);
+        
         const updates: any = {
-          x: Math.round(e.target.left || 0),
-          y: Math.round(e.target.top || 0),
+          x: relativeX,
+          y: relativeY,
           width: isNaN(calculatedWidth) ? 1 : Math.max(1, Math.round(calculatedWidth)),
           height: isNaN(calculatedHeight) ? 1 : Math.max(1, Math.round(calculatedHeight)),
           rotation: Math.round(e.target.angle || 0),
@@ -744,15 +766,16 @@ const Canvas = () => {
 
   const addTextElement = (canvas: fabric.Canvas) => {
     if (!design) return;
-    // Calculate page offset in workspace
-    const workspaceWidth = Math.max(design.page_width * 3, 3000);
-    const workspaceHeight = Math.max(design.page_height * 3, 3000);
-    const pageLeft = (workspaceWidth - design.page_width) / 2;
-    const pageTop = (workspaceHeight - design.page_height) / 2;
+    
+    // Get viewport center in canvas coordinates
+    const vpt = canvas.viewportTransform;
+    const zoom = canvas.getZoom();
+    const centerX = (canvas.width! / 2 - vpt![4]) / zoom;
+    const centerY = (canvas.height! / 2 - vpt![5]) / zoom;
     
     const text = new fabric.IText('Double-click to edit', {
-      left: pageLeft + 100,
-      top: pageTop + 100,
+      left: centerX - 50,
+      top: centerY - 15,
       fontSize: 24,
       fontFamily: 'Helvetica',
       fill: '#000000',
@@ -769,14 +792,20 @@ const Canvas = () => {
 
     const id = `text_${Date.now()}`;
     text.set({ data: { id } });
+    
+    // Mark as recently modified to prevent sync interference
+    recentlyModifiedRef.current.add(id);
+    isSyncingRef.current = true;
+    
     canvas.add(text);
     canvas.setActiveObject(text);
+    canvas.renderAll();
 
     addElement({
       id,
       type: 'text',
-      x: 100,
-      y: 100,
+      x: Math.round(text.left || 0),
+      y: Math.round(text.top || 0),
       width: text.width || 100,
       height: text.height || 30,
       rotation: 0,
@@ -788,19 +817,26 @@ const Canvas = () => {
         color: '#000000',
       },
     });
+    
+    // Clear recently modified flag after delay
+    setTimeout(() => {
+      recentlyModifiedRef.current.delete(id);
+      isSyncingRef.current = false;
+    }, 1000);
   };
 
   const addRectangleElement = (canvas: fabric.Canvas) => {
     if (!design) return;
-    // Calculate page offset in workspace
-    const workspaceWidth = Math.max(design.page_width * 3, 3000);
-    const workspaceHeight = Math.max(design.page_height * 3, 3000);
-    const pageLeft = (workspaceWidth - design.page_width) / 2;
-    const pageTop = (workspaceHeight - design.page_height) / 2;
+    
+    // Get viewport center in canvas coordinates
+    const vpt = canvas.viewportTransform;
+    const zoom = canvas.getZoom();
+    const centerX = (canvas.width! / 2 - vpt![4]) / zoom;
+    const centerY = (canvas.height! / 2 - vpt![5]) / zoom;
     
     const rect = new fabric.Rect({
-      left: pageLeft + 100,
-      top: pageTop + 100,
+      left: centerX - 50,
+      top: centerY - 50,
       width: 100,
       height: 100,
       fill: 'transparent',
@@ -810,14 +846,20 @@ const Canvas = () => {
 
     const id = `rect_${Date.now()}`;
     rect.set({ data: { id } });
+    
+    // Mark as recently modified to prevent sync interference
+    recentlyModifiedRef.current.add(id);
+    isSyncingRef.current = true;
+    
     canvas.add(rect);
     canvas.setActiveObject(rect);
+    canvas.renderAll();
 
     addElement({
       id,
       type: 'rectangle',
-      x: 100,
-      y: 100,
+      x: Math.round(rect.left || 0),
+      y: Math.round(rect.top || 0),
       width: 100,
       height: 100,
       rotation: 0,
@@ -828,19 +870,26 @@ const Canvas = () => {
         strokeWidth: 2,
       },
     });
+    
+    // Clear recently modified flag after delay
+    setTimeout(() => {
+      recentlyModifiedRef.current.delete(id);
+      isSyncingRef.current = false;
+    }, 1000);
   };
 
   const addCircleElement = (canvas: fabric.Canvas) => {
     if (!design) return;
-    // Calculate page offset in workspace
-    const workspaceWidth = Math.max(design.page_width * 3, 3000);
-    const workspaceHeight = Math.max(design.page_height * 3, 3000);
-    const pageLeft = (workspaceWidth - design.page_width) / 2;
-    const pageTop = (workspaceHeight - design.page_height) / 2;
+    
+    // Get viewport center in canvas coordinates
+    const vpt = canvas.viewportTransform;
+    const zoom = canvas.getZoom();
+    const centerX = (canvas.width! / 2 - vpt![4]) / zoom;
+    const centerY = (canvas.height! / 2 - vpt![5]) / zoom;
     
     const circle = new fabric.Circle({
-      left: pageLeft + 100,
-      top: pageTop + 100,
+      left: centerX - 50,
+      top: centerY - 50,
       radius: 50,
       fill: 'transparent',
       stroke: '#000000',
@@ -849,14 +898,20 @@ const Canvas = () => {
 
     const id = `circle_${Date.now()}`;
     circle.set({ data: { id } });
+    
+    // Mark as recently modified to prevent sync interference
+    recentlyModifiedRef.current.add(id);
+    isSyncingRef.current = true;
+    
     canvas.add(circle);
     canvas.setActiveObject(circle);
+    canvas.renderAll();
 
     addElement({
       id,
       type: 'circle',
-      x: 100,
-      y: 100,
+      x: Math.round(circle.left || 0),
+      y: Math.round(circle.top || 0),
       width: 100,
       height: 100,
       rotation: 0,
@@ -867,17 +922,24 @@ const Canvas = () => {
         strokeWidth: 2,
       },
     });
+    
+    // Clear recently modified flag after delay
+    setTimeout(() => {
+      recentlyModifiedRef.current.delete(id);
+      isSyncingRef.current = false;
+    }, 1000);
   };
 
   const addLineElement = (canvas: fabric.Canvas) => {
     if (!design) return;
-    // Calculate page offset in workspace
-    const workspaceWidth = Math.max(design.page_width * 3, 3000);
-    const workspaceHeight = Math.max(design.page_height * 3, 3000);
-    const pageLeft = (workspaceWidth - design.page_width) / 2;
-    const pageTop = (workspaceHeight - design.page_height) / 2;
     
-    const line = new fabric.Line([pageLeft + 100, pageTop + 100, pageLeft + 200, pageTop + 100], {
+    // Get viewport center in canvas coordinates
+    const vpt = canvas.viewportTransform;
+    const zoom = canvas.getZoom();
+    const centerX = (canvas.width! / 2 - vpt![4]) / zoom;
+    const centerY = (canvas.height! / 2 - vpt![5]) / zoom;
+    
+    const line = new fabric.Line([centerX - 50, centerY, centerX + 50, centerY], {
       stroke: '#000000',
       strokeWidth: 2,
       lockScalingY: true, // Prevent vertical scaling
@@ -899,14 +961,20 @@ const Canvas = () => {
 
     const id = `line_${Date.now()}`;
     line.set({ data: { id } });
+    
+    // Mark as recently modified to prevent sync interference
+    recentlyModifiedRef.current.add(id);
+    isSyncingRef.current = true;
+    
     canvas.add(line);
     canvas.setActiveObject(line);
+    canvas.renderAll();
 
     addElement({
       id,
       type: 'line',
-      x: 100,
-      y: 100,
+      x: Math.round(line.x1 || 0),
+      y: Math.round(line.y1 || 0),
       width: 100,
       height: 0,
       rotation: 0,
@@ -916,6 +984,12 @@ const Canvas = () => {
         strokeWidth: 2,
       },
     });
+    
+    // Clear recently modified flag after delay
+    setTimeout(() => {
+      recentlyModifiedRef.current.delete(id);
+      isSyncingRef.current = false;
+    }, 1000);
   };
 
   // Zoom handlers
@@ -946,16 +1020,21 @@ const Canvas = () => {
     
     const containerWidth = container.clientWidth;
     const containerHeight = container.clientHeight;
-    const canvasWidth = design.page_width;
-    const canvasHeight = design.page_height;
+    const pageWidth = design.page_width;
+    const pageHeight = design.page_height;
     
-    const scaleX = (containerWidth * 0.9) / canvasWidth;
-    const scaleY = (containerHeight * 0.9) / canvasHeight;
+    // Calculate zoom to fit page with padding
+    const scaleX = (containerWidth * 0.85) / pageWidth;
+    const scaleY = (containerHeight * 0.85) / pageHeight;
     const newZoom = Math.min(scaleX, scaleY);
+    
+    // Center the page in viewport (page is at origin)
+    const centerX = containerWidth / 2 - pageWidth / 2 * newZoom;
+    const centerY = containerHeight / 2 - pageHeight / 2 * newZoom;
     
     canvas.setZoom(newZoom);
     setZoom(newZoom);
-    canvas.setViewportTransform([newZoom, 0, 0, newZoom, 0, 0]);
+    canvas.setViewportTransform([newZoom, 0, 0, newZoom, centerX, centerY]);
     canvas.requestRenderAll();
   };
 
