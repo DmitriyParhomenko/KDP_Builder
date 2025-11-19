@@ -1,0 +1,25 @@
+# Public Repository - Light Version
+# This file lists what to EXCLUDE from public repo
+
+# Exclude AI/Backend (proprietary)
+kdp_builder/ai/
+kdp_builder/blocks/
+kdp_builder/patterns/
+kdp_builder/renderer/
+*.pkl
+*.db
+chroma_db/
+
+# Exclude API keys and secrets
+.env
+.env.local
+*.pem
+*.key
+config/secrets.py
+
+# Exclude private documentation
+PRIVATE_*.md
+INTERNAL_*.md
+
+# Keep only frontend and basic structure
+# Everything else goes to public repo
