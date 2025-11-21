@@ -51,6 +51,7 @@ const Canvas = () => {
       selectable: false,
       evented: false,
       excludeFromExport: true,
+      data: { type: 'background-page' },
     });
     canvas.add(pageRect);
     canvas.sendToBack(pageRect);
@@ -635,19 +636,44 @@ const Canvas = () => {
       }
     });
 
-    // Update stacking order based on z_index
+    // Position background elements at the bottom FIRST
+    // Final order should be: page (position 0) -> grid (on top of page) -> margins -> elements (top)
+    const allObjects = canvas.getObjects();
+    const gridObjects = allObjects.filter((obj: any) => obj.data?.type === 'background-grid');
+    const pageObjects = allObjects.filter((obj: any) => obj.data?.type === 'background-page');
+    const marginObjects = allObjects.filter((obj: any) => obj.data?.type === 'background-margins');
+    
+    console.log('📊 Background objects:', {
+      grid: gridObjects.length,
+      page: pageObjects.length,
+      margins: marginObjects.length,
+      total: allObjects.length
+    });
+    
+    // Move page to position 0 (bottom)
+    let bgPosition = 0;
+    pageObjects.forEach((obj: any) => {
+      canvas.moveTo(obj, bgPosition++);
+    });
+    
+    // Move grid lines on top of page
+    gridObjects.forEach((obj: any) => {
+      canvas.moveTo(obj, bgPosition++);
+    });
+    
+    // Move margins on top of grid
+    marginObjects.forEach((obj: any) => {
+      canvas.moveTo(obj, bgPosition++);
+    });
+
+    // Now update stacking order of elements based on z_index
+    // Start positioning AFTER all background elements
+    const backgroundCount = gridObjects.length + pageObjects.length + marginObjects.length;
     const sortedElements = [...currentPageElements].sort((a, b) => a.z_index - b.z_index);
     sortedElements.forEach((element, index) => {
       const canvasObj = canvas.getObjects().find((obj: any) => obj.data?.id === element.id);
       if (canvasObj) {
-        canvas.moveTo(canvasObj, index);
-      }
-    });
-
-    // Send background elements (page, grid, margins) to back AFTER reordering
-    canvas.getObjects().forEach((obj: any) => {
-      if (obj.selectable === false || obj.evented === false) {
-        canvas.sendToBack(obj);
+        canvas.moveTo(canvasObj, backgroundCount + index);
       }
     });
 
@@ -668,21 +694,29 @@ const Canvas = () => {
 
   const addGrid = (canvas: fabric.Canvas, width: number, height: number, offsetX: number, offsetY: number) => {
     const gridSize = 36; // 0.5 inch
-    const options = {
-      stroke: '#e0e0e0',
-      strokeWidth: 0.5,
-      selectable: false,
-      evented: false,
-    };
 
     // Vertical lines
     for (let i = 0; i <= width; i += gridSize) {
-      canvas.add(new fabric.Line([offsetX + i, offsetY, offsetX + i, offsetY + height], options));
+      const line = new fabric.Line([offsetX + i, offsetY, offsetX + i, offsetY + height], {
+        stroke: '#e0e0e0',
+        strokeWidth: 0.5,
+        selectable: false,
+        evented: false,
+      });
+      line.set({ data: { type: 'background-grid' } });
+      canvas.add(line);
     }
 
     // Horizontal lines
     for (let i = 0; i <= height; i += gridSize) {
-      canvas.add(new fabric.Line([offsetX, offsetY + i, offsetX + width, offsetY + i], options));
+      const line = new fabric.Line([offsetX, offsetY + i, offsetX + width, offsetY + i], {
+        stroke: '#e0e0e0',
+        strokeWidth: 0.5,
+        selectable: false,
+        evented: false,
+      });
+      line.set({ data: { type: 'background-grid' } });
+      canvas.add(line);
     }
   };
 
@@ -700,6 +734,7 @@ const Canvas = () => {
       strokeDashArray: [5, 5],
       selectable: false,
       evented: false,
+      data: { type: 'background-margins' },
     });
 
     canvas.add(rect);
