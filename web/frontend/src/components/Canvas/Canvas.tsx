@@ -644,6 +644,13 @@ const Canvas = () => {
       }
     });
 
+    // Send background elements (page, grid, margins) to back AFTER reordering
+    canvas.getObjects().forEach((obj: any) => {
+      if (obj.selectable === false || obj.evented === false) {
+        canvas.sendToBack(obj);
+      }
+    });
+
     canvas.renderAll();
   }, [design, currentPage]);
 
