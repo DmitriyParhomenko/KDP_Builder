@@ -37,12 +37,23 @@ class ExportResponse(BaseModel):
     file_path: str = ""
     download_url: str = ""
 
-def _render_element(c: canvas.Canvas, element: DesignElement):
-    """Render a single element to PDF canvas"""
+def _render_element(c: canvas.Canvas, element: DesignElement, design_page_height: float, bleed_offset_y: float):
+    """
+    Render a single element to PDF canvas.
+    
+    Converts from web canvas coordinates (Y=0 at top) to PDF coordinates (Y=0 at bottom),
+    using the design page height (without bleed) and then applying the bleed offset.
+    """
     elem_type = element.type
     props = element.properties
     
     c.saveState()
+    
+    # Convert web Y (top-origin) to PDF Y (bottom-origin) using design height, then add bleed
+    design_y = element.y - bleed_offset_y  # remove bleed to get design-space Y
+    pdf_y_top = bleed_offset_y + (design_page_height - design_y)
+    pdf_y_bottom = bleed_offset_y + (design_page_height - (design_y + element.height))
+    pdf_y_center = bleed_offset_y + (design_page_height - (design_y + element.height / 2))
     
     if elem_type == "text":
         # Render text
@@ -60,12 +71,20 @@ def _render_element(c: canvas.Canvas, element: DesignElement):
         if color.startswith("#"):
             c.setFillColor(HexColor(color))
         
+        # ReportLab draws text with baseline at y; fabric's top is at y.
+        # Shift by ascent to align tops across canvas and PDF.
+        try:
+            ascent = c._font.ascent / 1000.0 * font_size  # type: ignore[attr-defined]
+        except Exception:
+            ascent = font_size * 0.8
+        text_y = pdf_y_top - ascent
+        
         if align == "center":
-            c.drawCentredString(element.x + element.width / 2, element.y, text)
+            c.drawCentredString(element.x + element.width / 2, text_y, text)
         elif align == "right":
-            c.drawRightString(element.x + element.width, element.y, text)
+            c.drawRightString(element.x + element.width, text_y, text)
         else:
-            c.drawString(element.x, element.y, text)
+            c.drawString(element.x, text_y, text)
     
     elif elem_type == "rectangle":
         # Render rectangle
@@ -80,9 +99,9 @@ def _render_element(c: canvas.Canvas, element: DesignElement):
         
         if fill != "none" and fill.startswith("#"):
             c.setFillColor(HexColor(fill))
-            c.rect(element.x, element.y, element.width, element.height, fill=1, stroke=1)
+            c.rect(element.x, pdf_y_bottom, element.width, element.height, fill=1, stroke=1)
         else:
-            c.rect(element.x, element.y, element.width, element.height, fill=0, stroke=1)
+            c.rect(element.x, pdf_y_bottom, element.width, element.height, fill=0, stroke=1)
     
     elif elem_type == "circle":
         # Render circle
@@ -97,7 +116,7 @@ def _render_element(c: canvas.Canvas, element: DesignElement):
         
         radius = min(element.width, element.height) / 2
         center_x = element.x + element.width / 2
-        center_y = element.y + element.height / 2
+        center_y = pdf_y_center
         
         if fill != "none" and fill.startswith("#"):
             c.setFillColor(HexColor(fill))
@@ -115,7 +134,12 @@ def _render_element(c: canvas.Canvas, element: DesignElement):
         if stroke.startswith("#"):
             c.setStrokeColor(HexColor(stroke))
         
-        c.line(element.x, element.y, element.x + element.width, element.y + element.height)
+        x1 = element.x
+        y1 = pdf_y_top
+        x2 = element.x + element.width
+        y2 = pdf_y_bottom
+        
+        c.line(x1, y1, x2, y2)
     
     c.restoreState()
 
@@ -163,7 +187,8 @@ async def export_to_pdf(request: ExportRequest):
                 adjusted_element.x += offset_x
                 adjusted_element.y += offset_y
                 
-                _render_element(c, adjusted_element)
+                # Use design page height for conversion and bleed offset for placement
+                _render_element(c, adjusted_element, design.page_height, offset_y)
             
             # Next page (if not last)
             if page.page_number < len(design.pages):
