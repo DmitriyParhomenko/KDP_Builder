@@ -4,7 +4,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { fabric } from 'fabric';
-import { useDesignStore } from '../../store/designStore';
+import { useDesignStore } from '../../../../shared/store/designStore';
 
 const Canvas = () => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -88,36 +88,6 @@ const Canvas = () => {
       if (typeof g.left === 'number') g.left = Math.min(Math.max(g.left, minLeft), Math.max(minLeft, maxLeft));
       if (typeof g.top === 'number') g.top = Math.min(Math.max(g.top, minTop), Math.max(minTop, maxTop));
     };
-
-    // BOUNDARY CLAMPING DISABLED - Elements can now move outside red margins
-    // canvas.on('object:moving', (e: any) => {
-    //   if (!e.target) return;
-    //   if (e.target.type === 'activeSelection') {
-    //     clampGroupWithinMargins(e.target as fabric.ActiveSelection);
-    //   } else {
-    //     clampObjectWithinMargins(e.target);
-    //   }
-    // });
-
-    // canvas.on('object:scaling', (e: any) => {
-    //   if (!e.target) return;
-    //   if (e.target.type === 'activeSelection') {
-    //     clampGroupWithinMargins(e.target as fabric.ActiveSelection);
-    //     return;
-    //   }
-    //   const o: any = e.target;
-    //   // Ensure scale does not push outside margins
-    //   const baseW = o.width || 0;
-    //   const baseH = o.height || 0;
-    //   const left = o.left || 0;
-    //   const top = o.top || 0;
-    //   const maxScaleX = (pageW - margin - left) / Math.max(1, baseW);
-    //   const maxScaleY = (pageH - margin - top) / Math.max(1, baseH);
-    //   if (o.scaleX) o.scaleX = Math.min(o.scaleX, Math.max(0.1, maxScaleX));
-    //   if (o.scaleY) o.scaleY = Math.min(o.scaleY, Math.max(0.1, maxScaleY));
-    //   // After scaling, clamp position too
-    //   clampObjectWithinMargins(o);
-    // });
 
     fabricRef.current = canvas;
 

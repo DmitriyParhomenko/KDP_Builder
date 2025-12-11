@@ -2,17 +2,17 @@
  * Properties Component - Right sidebar for element properties
  */
 
-import { useDesignStore } from '../../store/designStore';
+import { useDesignStore } from '../../../../shared/store/designStore';
+import Panel from '../../../../shared/ui/Panel';
 
 const Properties = () => {
   const { design, currentPage, selectedElements, updateElement } = useDesignStore();
 
   if (!design || selectedElements.length === 0) {
     return (
-      <div className="p-4">
-        <h3 className="text-sm font-semibold text-gray-400 mb-4">Properties</h3>
+      <Panel title="Properties">
         <p className="text-sm text-gray-500">Select an element to edit its properties</p>
-      </div>
+      </Panel>
     );
   }
 
@@ -35,8 +35,7 @@ const Properties = () => {
   };
 
   return (
-    <div className="p-4">
-      <h3 className="text-sm font-semibold text-gray-400 mb-4">Properties</h3>
+    <Panel title="Properties">
 
       {/* Position & Size */}
       <div className="mb-6">
@@ -217,7 +216,7 @@ const Properties = () => {
           </div>
         </div>
       )}
-    </div>
+    </Panel>
   );
 };
 

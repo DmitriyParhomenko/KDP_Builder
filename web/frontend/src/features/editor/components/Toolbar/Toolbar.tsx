@@ -3,8 +3,8 @@
  */
 
 import { MousePointer, Type, Square, Circle, Minus, Hand } from 'lucide-react';
-import { useDesignStore } from '../../store/designStore';
-import type { Tool } from '../../types/design';
+import { useDesignStore } from '../../../../shared/store/designStore';
+import type { Tool } from '../../../../features/design/types';
 
 const tools: { id: Tool; icon: any; label: string }[] = [
   { id: 'select', icon: MousePointer, label: 'Select' },

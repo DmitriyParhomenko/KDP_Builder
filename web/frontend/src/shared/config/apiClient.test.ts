@@ -16,8 +16,10 @@ vi.mock('axios', () => {
   };
 });
 
-// Import client after mock is set up
-import { designsAPI, aiAPI, exportAPI } from './client';
+// Import api modules after mock is set up
+import { designsAPI } from '../../features/design/api/designs';
+import { aiAPI } from '../../features/editor/api/ai';
+import { exportAPI } from '../../features/export/api/export';
 import axios from 'axios';
 
 // Get reference to the mock instance

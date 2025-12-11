@@ -3,7 +3,7 @@
  */
 
 import { create } from 'zustand';
-import type { Design, DesignElement, Tool } from '../types/design';
+import type { Design, DesignElement, Tool } from '../../features/design/types';
 
 interface DesignState {
   // Current design

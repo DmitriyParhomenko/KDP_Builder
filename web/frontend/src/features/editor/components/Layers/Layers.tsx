@@ -4,7 +4,8 @@
 
 import { useState } from 'react';
 import { Eye, EyeOff, Trash2, GripVertical } from 'lucide-react';
-import { useDesignStore } from '../../store/designStore';
+import { useDesignStore } from '../../../../shared/store/designStore';
+import Panel from '../../../../shared/ui/Panel';
 
 const Layers = () => {
   const { design, currentPage, selectedElements, selectElement, deleteElement, reorderElement } = useDesignStore();
@@ -35,8 +36,7 @@ const Layers = () => {
   };
 
   return (
-    <div className="p-4">
-      <h3 className="text-sm font-semibold text-gray-400 mb-4">Layers</h3>
+    <Panel title="Layers">
 
       {sortedElements.length === 0 ? (
         <p className="text-sm text-gray-500">No elements yet</p>
@@ -103,7 +103,7 @@ const Layers = () => {
           })}
         </div>
       )}
-    </div>
+    </Panel>
   );
 };
 
