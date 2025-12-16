@@ -55,6 +55,14 @@ def _render_element(c: canvas.Canvas, element: DesignElement, design_page_height
     pdf_y_bottom = bleed_offset_y + (design_page_height - (design_y + element.height))
     pdf_y_center = bleed_offset_y + (design_page_height - (design_y + element.height / 2))
     
+    # Apply rotation if element is rotated
+    if element.rotation != 0:
+        center_x = element.x + element.width / 2
+        center_y = pdf_y_center
+        c.translate(center_x, center_y)
+        c.rotate(element.rotation)
+        c.translate(-center_x, -center_y)
+    
     if elem_type == "text":
         # Render text
         text = props.get("text", "")

@@ -84,6 +84,98 @@ export const useElementsSync = ({
     const onModified = (e: any) => {
       if (!e.target || isSyncingRef.current || !design) return;
       const target = e.target as any;
+
+      // Handle group selection (multiple objects moved together)
+      if (target.type === 'activeSelection') {
+        const group = target;
+        const objects = group.getObjects();
+        
+        isSyncingRef.current = true;
+
+        // Ungroup to get absolute positions, then update each object
+        const itemsData: Array<{id: string, obj: any, updates: any}> = [];
+        
+        objects.forEach((obj: any) => {
+          if (!obj.data?.id) return;
+
+          // Get the absolute position using Fabric's coordinate system
+          const matrix = group.calcTransformMatrix();
+          const objCenter = obj.getCenterPoint();
+          const transformedPoint = fabric.util.transformPoint(objCenter, matrix);
+
+          // Calculate dimensions accounting for object's own scale
+          const objWidth = (obj.width || 0) * (obj.scaleX || 1);
+          const objHeight = (obj.height || 0) * (obj.scaleY || 1);
+          
+          // Calculate the final angle (object's angle + group's angle)
+          const finalAngle = (obj.angle || 0) + (group.angle || 0);
+          
+          // For rotated objects, we need to calculate the bounding box
+          // The transformed center point is correct, but we need to find top-left
+          // accounting for the object's rotation
+          const angleRad = (finalAngle * Math.PI) / 180;
+          const cos = Math.cos(angleRad);
+          const sin = Math.sin(angleRad);
+          
+          // Calculate the offset from center to top-left corner for rotated object
+          const halfWidth = objWidth / 2;
+          const halfHeight = objHeight / 2;
+          
+          // Top-left corner offset in rotated coordinate system
+          const offsetX = -halfWidth * cos + halfHeight * sin;
+          const offsetY = -halfWidth * sin - halfHeight * cos;
+          
+          const absoluteLeft = transformedPoint.x + offsetX;
+          const absoluteTop = transformedPoint.y + offsetY;
+
+          const calculatedWidth = objWidth * (group.scaleX || 1);
+          const calculatedHeight = objHeight * (group.scaleY || 1);
+
+          const updates: any = {
+            x: Math.round(absoluteLeft - pageOffsetLeft),
+            y: Math.round(absoluteTop - pageOffsetTop),
+            width: isNaN(calculatedWidth) ? 1 : Math.max(1, Math.round(calculatedWidth)),
+            height: isNaN(calculatedHeight) ? 1 : Math.max(1, Math.round(calculatedHeight)),
+            rotation: Math.round(finalAngle),
+          };
+
+          if (obj.type === 'i-text' || obj.type === 'text') {
+            const textObj = obj as any;
+            const originalFontSize = textObj.fontSize || 16;
+            const scaleX = textObj.scaleX || 1;
+            const scaleY = textObj.scaleY || 1;
+            const groupScaleX = group.scaleX || 1;
+            const groupScaleY = group.scaleY || 1;
+            const avgScale = ((scaleX * groupScaleX) + (scaleY * groupScaleY)) / 2;
+            const newFontSize = Math.round(originalFontSize * avgScale);
+            updates.properties = {
+              text: textObj.text || '',
+              fontSize: newFontSize,
+              fontFamily: textObj.fontFamily || 'Arial',
+              color: textObj.fill || '#000000',
+            };
+          }
+
+          itemsData.push({ id: obj.data.id, obj, updates });
+        });
+
+        // Update all elements in store
+        itemsData.forEach(({ id, updates }) => {
+          recentlyModifiedRef.current.add(id);
+          updateElement(id, updates);
+        });
+
+        setTimeout(() => {
+          isSyncingRef.current = false;
+          itemsData.forEach(({ id }) => {
+            recentlyModifiedRef.current.delete(id);
+          });
+        }, 300);
+
+        return;
+      }
+
+      // Handle single object modification
       if (!target.data?.id) return;
 
       isSyncingRef.current = true;
