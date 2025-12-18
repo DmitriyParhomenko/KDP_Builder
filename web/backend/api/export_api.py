@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from typing import List, Dict, Any
 from pathlib import Path
 import sys
+import math
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
@@ -43,24 +44,32 @@ def _render_element(c: canvas.Canvas, element: DesignElement, design_page_height
     
     Converts from web canvas coordinates (Y=0 at top) to PDF coordinates (Y=0 at bottom),
     using the design page height (without bleed) and then applying the bleed offset.
+    
+    For rotated elements, the x,y coordinates represent the top-left of the bounding box,
+    and we rotate around the center of that bounding box.
     """
     elem_type = element.type
     props = element.properties
     
     c.saveState()
     
-    # Convert web Y (top-origin) to PDF Y (bottom-origin) using design height, then add bleed
-    design_y = element.y - bleed_offset_y  # remove bleed to get design-space Y
-    pdf_y_top = bleed_offset_y + (design_page_height - design_y)
-    pdf_y_bottom = bleed_offset_y + (design_page_height - (design_y + element.height))
-    pdf_y_center = bleed_offset_y + (design_page_height - (design_y + element.height / 2))
+    # element.x and element.y now store the CENTER point
+    center_x = element.x
+    center_y_web = element.y
+    
+    # Convert center Y from web (Y=0 at top) to PDF (Y=0 at bottom)
+    design_center_y = center_y_web - bleed_offset_y
+    center_y = bleed_offset_y + (design_page_height - design_center_y)
+    
+    # Calculate top/bottom/left for rendering (relative to center)
+    pdf_y_top = center_y + element.height / 2
+    pdf_y_bottom = center_y - element.height / 2
+    pdf_y_center = center_y
     
     # Apply rotation if element is rotated
     if element.rotation != 0:
-        center_x = element.x + element.width / 2
-        center_y = pdf_y_center
         c.translate(center_x, center_y)
-        c.rotate(element.rotation)
+        c.rotate(-element.rotation)
         c.translate(-center_x, -center_y)
     
     if elem_type == "text":
@@ -79,23 +88,24 @@ def _render_element(c: canvas.Canvas, element: DesignElement, design_page_height
         if color.startswith("#"):
             c.setFillColor(HexColor(color))
         
-        # ReportLab draws text with baseline at y; fabric's top is at y.
-        # Shift by ascent to align tops across canvas and PDF.
-        try:
-            ascent = c._font.ascent / 1000.0 * font_size  # type: ignore[attr-defined]
-        except Exception:
-            ascent = font_size * 0.8
-        text_y = pdf_y_top - ascent
+        # Calculate text position from center
+        text_left = center_x - element.width / 2
+        
+        # For text centered at center_y (Fabric.js style), we need to find the baseline
+        # The visual center of text is approximately 0.31 * font_size above the baseline
+        # So: center_y = baseline + 0.31 * font_size
+        # Therefore: baseline = center_y - 0.31 * font_size
+        text_y = center_y - font_size * 0.31
         
         if align == "center":
-            c.drawCentredString(element.x + element.width / 2, text_y, text)
+            c.drawCentredString(center_x, text_y, text)
         elif align == "right":
-            c.drawRightString(element.x + element.width, text_y, text)
+            c.drawRightString(text_left + element.width, text_y, text)
         else:
-            c.drawString(element.x, text_y, text)
+            c.drawString(text_left, text_y, text)
     
     elif elem_type == "rectangle":
-        # Render rectangle
+        # Render rectangle centered at center point
         fill = props.get("fill", "none")
         stroke = props.get("stroke", "#000000")
         stroke_width = props.get("strokeWidth", 1.0)
@@ -105,14 +115,17 @@ def _render_element(c: canvas.Canvas, element: DesignElement, design_page_height
         if stroke.startswith("#"):
             c.setStrokeColor(HexColor(stroke))
         
+        rect_left = center_x - element.width / 2
+        rect_bottom = center_y - element.height / 2
+        
         if fill != "none" and fill.startswith("#"):
             c.setFillColor(HexColor(fill))
-            c.rect(element.x, pdf_y_bottom, element.width, element.height, fill=1, stroke=1)
+            c.rect(rect_left, rect_bottom, element.width, element.height, fill=1, stroke=1)
         else:
-            c.rect(element.x, pdf_y_bottom, element.width, element.height, fill=0, stroke=1)
+            c.rect(rect_left, rect_bottom, element.width, element.height, fill=0, stroke=1)
     
     elif elem_type == "circle":
-        # Render circle
+        # Render circle centered at center point
         fill = props.get("fill", "none")
         stroke = props.get("stroke", "#000000")
         stroke_width = props.get("strokeWidth", 1.0)
@@ -123,8 +136,6 @@ def _render_element(c: canvas.Canvas, element: DesignElement, design_page_height
             c.setStrokeColor(HexColor(stroke))
         
         radius = min(element.width, element.height) / 2
-        center_x = element.x + element.width / 2
-        center_y = pdf_y_center
         
         if fill != "none" and fill.startswith("#"):
             c.setFillColor(HexColor(fill))
@@ -133,7 +144,7 @@ def _render_element(c: canvas.Canvas, element: DesignElement, design_page_height
             c.circle(center_x, center_y, radius, fill=0, stroke=1)
     
     elif elem_type == "line":
-        # Render line
+        # Render line centered at center point (horizontal line, rotation handles angle)
         stroke = props.get("stroke", "#000000")
         stroke_width = props.get("strokeWidth", 1.0)
         
@@ -142,10 +153,11 @@ def _render_element(c: canvas.Canvas, element: DesignElement, design_page_height
         if stroke.startswith("#"):
             c.setStrokeColor(HexColor(stroke))
         
-        x1 = element.x
-        y1 = pdf_y_top
-        x2 = element.x + element.width
-        y2 = pdf_y_bottom
+        # Line endpoints from center
+        x1 = center_x - element.width / 2
+        y1 = center_y
+        x2 = center_x + element.width / 2
+        y2 = center_y
         
         c.line(x1, y1, x2, y2)
     

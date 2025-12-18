@@ -30,6 +30,10 @@ export const createFabricObject = (
   offsetX: number,
   offsetY: number
 ): any | null => {
+  // element.x and element.y now store the CENTER point for reliable positioning
+  const centerX = offsetX + element.x;
+  const centerY = offsetY + element.y;
+  
   switch (element.type) {
     case 'text': {
       const align = ['left', 'center', 'right', 'justify', 'start', 'end'].includes(
@@ -38,8 +42,10 @@ export const createFabricObject = (
         ? element.properties.align || 'left'
         : 'left';
       const obj = new fabric.IText(element.properties.text || 'Text', {
-        left: offsetX + element.x,
-        top: offsetY + element.y,
+        left: centerX,
+        top: centerY,
+        originX: 'center',
+        originY: 'center',
         fontSize: element.properties.fontSize || 12,
         fontFamily: element.properties.fontFamily || 'Helvetica',
         fill: element.properties.color || '#000000',
@@ -53,8 +59,10 @@ export const createFabricObject = (
     }
     case 'rectangle':
       return new fabric.Rect({
-        left: offsetX + element.x,
-        top: offsetY + element.y,
+        left: centerX,
+        top: centerY,
+        originX: 'center',
+        originY: 'center',
         width: element.width,
         height: element.height,
         fill: element.properties.fill || 'transparent',
@@ -65,8 +73,10 @@ export const createFabricObject = (
       });
     case 'circle':
       return new fabric.Circle({
-        left: offsetX + element.x,
-        top: offsetY + element.y,
+        left: centerX,
+        top: centerY,
+        originX: 'center',
+        originY: 'center',
         radius: Math.min(element.width, element.height) / 2,
         fill: element.properties.fill || 'transparent',
         stroke: element.properties.stroke || '#000000',
@@ -75,8 +85,10 @@ export const createFabricObject = (
         evented: true,
       });
     case 'line': {
+      // For lines, use the center point and let rotation handle the angle
+      const halfWidth = element.width / 2;
       const line = new fabric.Line(
-        [offsetX + element.x, offsetY + element.y, offsetX + element.x + element.width, offsetY + element.y + element.height],
+        [centerX - halfWidth, centerY, centerX + halfWidth, centerY],
         {
           stroke: element.properties.stroke || '#000000',
           strokeWidth: element.properties.strokeWidth || 1,
@@ -84,6 +96,8 @@ export const createFabricObject = (
           lockRotation: false,
           selectable: true,
           evented: true,
+          originX: 'center',
+          originY: 'center',
         }
       );
       setLineControls(line);

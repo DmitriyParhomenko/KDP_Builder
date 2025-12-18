@@ -78,8 +78,10 @@ const addText = (canvas: any, design: Design | null, addElement: (el: any) => vo
   if (!design) return;
   const { centerX, centerY } = getViewportCenter(canvas);
   const text = new fabric.IText('Double-click to edit', {
-    left: centerX - 50,
-    top: centerY - 15,
+    left: centerX,
+    top: centerY,
+    originX: 'center',
+    originY: 'center',
     fontSize: 24,
     fontFamily: 'Helvetica',
     fill: '#000000',
@@ -92,11 +94,13 @@ const addText = (canvas: any, design: Design | null, addElement: (el: any) => vo
   canvas.setActiveObject(text);
   canvas.renderAll();
 
+  // Store center coordinates
+  const textCenter = text.getCenterPoint();
   addElement({
     id,
     type: 'text',
-    x: Math.round(text.left || 0),
-    y: Math.round(text.top || 0),
+    x: Math.round(textCenter.x),
+    y: Math.round(textCenter.y),
     width: text.width || 100,
     height: text.height || 30,
     rotation: 0,
@@ -114,8 +118,10 @@ const addRect = (canvas: any, design: Design | null, addElement: (el: any) => vo
   if (!design) return;
   const { centerX, centerY } = getViewportCenter(canvas);
   const rect = new fabric.Rect({
-    left: centerX - 50,
-    top: centerY - 50,
+    left: centerX,
+    top: centerY,
+    originX: 'center',
+    originY: 'center',
     width: 100,
     height: 100,
     fill: 'transparent',
@@ -128,11 +134,13 @@ const addRect = (canvas: any, design: Design | null, addElement: (el: any) => vo
   canvas.setActiveObject(rect);
   canvas.renderAll();
 
+  // Store center coordinates
+  const rectCenter = rect.getCenterPoint();
   addElement({
     id,
     type: 'rectangle',
-    x: Math.round(rect.left || 0),
-    y: Math.round(rect.top || 0),
+    x: Math.round(rectCenter.x),
+    y: Math.round(rectCenter.y),
     width: 100,
     height: 100,
     rotation: 0,
@@ -145,8 +153,10 @@ const addCircle = (canvas: any, design: Design | null, addElement: (el: any) => 
   if (!design) return;
   const { centerX, centerY } = getViewportCenter(canvas);
   const circle = new fabric.Circle({
-    left: centerX - 50,
-    top: centerY - 50,
+    left: centerX,
+    top: centerY,
+    originX: 'center',
+    originY: 'center',
     radius: 50,
     fill: 'transparent',
     stroke: '#000000',
@@ -158,11 +168,13 @@ const addCircle = (canvas: any, design: Design | null, addElement: (el: any) => 
   canvas.setActiveObject(circle);
   canvas.renderAll();
 
+  // Store center coordinates
+  const circleCenter = circle.getCenterPoint();
   addElement({
     id,
     type: 'circle',
-    x: Math.round(circle.left || 0),
-    y: Math.round(circle.top || 0),
+    x: Math.round(circleCenter.x),
+    y: Math.round(circleCenter.y),
     width: 100,
     height: 100,
     rotation: 0,
@@ -179,6 +191,8 @@ const addLine = (canvas: any, design: Design | null, addElement: (el: any) => vo
     strokeWidth: 2,
     lockScalingY: true,
     lockRotation: false,
+    originX: 'center',
+    originY: 'center',
   });
   setLineControls(line);
   const id = `line_${Date.now()}`;
@@ -187,11 +201,13 @@ const addLine = (canvas: any, design: Design | null, addElement: (el: any) => vo
   canvas.setActiveObject(line);
   canvas.renderAll();
 
+  // Store center coordinates (the center of the line)
+  const lineCenter = line.getCenterPoint();
   addElement({
     id,
     type: 'line',
-    x: Math.round(line.x1 || 0),
-    y: Math.round(line.y1 || 0),
+    x: Math.round(lineCenter.x),
+    y: Math.round(lineCenter.y),
     width: 100,
     height: 0,
     rotation: 0,

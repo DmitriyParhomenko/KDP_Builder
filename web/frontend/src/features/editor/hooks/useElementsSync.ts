@@ -98,42 +98,24 @@ export const useElementsSync = ({
         objects.forEach((obj: any) => {
           if (!obj.data?.id) return;
 
-          // Get the absolute position using Fabric's coordinate system
+          // Get the absolute center position using Fabric's coordinate system
           const matrix = group.calcTransformMatrix();
           const objCenter = obj.getCenterPoint();
-          const transformedPoint = fabric.util.transformPoint(objCenter, matrix);
+          const transformedCenter = fabric.util.transformPoint(objCenter, matrix);
 
-          // Calculate dimensions accounting for object's own scale
+          // Calculate dimensions accounting for object's own scale and group scale
           const objWidth = (obj.width || 0) * (obj.scaleX || 1);
           const objHeight = (obj.height || 0) * (obj.scaleY || 1);
+          const calculatedWidth = objWidth * (group.scaleX || 1);
+          const calculatedHeight = objHeight * (group.scaleY || 1);
           
           // Calculate the final angle (object's angle + group's angle)
           const finalAngle = (obj.angle || 0) + (group.angle || 0);
-          
-          // For rotated objects, we need to calculate the bounding box
-          // The transformed center point is correct, but we need to find top-left
-          // accounting for the object's rotation
-          const angleRad = (finalAngle * Math.PI) / 180;
-          const cos = Math.cos(angleRad);
-          const sin = Math.sin(angleRad);
-          
-          // Calculate the offset from center to top-left corner for rotated object
-          const halfWidth = objWidth / 2;
-          const halfHeight = objHeight / 2;
-          
-          // Top-left corner offset in rotated coordinate system
-          const offsetX = -halfWidth * cos + halfHeight * sin;
-          const offsetY = -halfWidth * sin - halfHeight * cos;
-          
-          const absoluteLeft = transformedPoint.x + offsetX;
-          const absoluteTop = transformedPoint.y + offsetY;
 
-          const calculatedWidth = objWidth * (group.scaleX || 1);
-          const calculatedHeight = objHeight * (group.scaleY || 1);
-
+          // Store center coordinates for reliable PDF export
           const updates: any = {
-            x: Math.round(absoluteLeft - pageOffsetLeft),
-            y: Math.round(absoluteTop - pageOffsetTop),
+            x: Math.round(transformedCenter.x - pageOffsetLeft),
+            y: Math.round(transformedCenter.y - pageOffsetTop),
             width: isNaN(calculatedWidth) ? 1 : Math.max(1, Math.round(calculatedWidth)),
             height: isNaN(calculatedHeight) ? 1 : Math.max(1, Math.round(calculatedHeight)),
             rotation: Math.round(finalAngle),
@@ -182,12 +164,16 @@ export const useElementsSync = ({
 
       const calculatedWidth = (target.width || 0) * (target.scaleX || 1);
       const calculatedHeight = (target.height || 0) * (target.scaleY || 1);
-      const relativeX = Math.round((target.left || 0) - pageOffsetLeft);
-      const relativeY = Math.round((target.top || 0) - pageOffsetTop);
+      
+      // For rotated elements, use the center point for reliable positioning
+      // This ensures PDF export matches the canvas position
+      const centerPoint = target.getCenterPoint ? target.getCenterPoint() : { x: target.left, y: target.top };
+      const centerX = Math.round(centerPoint.x - pageOffsetLeft);
+      const centerY = Math.round(centerPoint.y - pageOffsetTop);
 
       const updates: any = {
-        x: relativeX,
-        y: relativeY,
+        x: centerX,
+        y: centerY,
         width: isNaN(calculatedWidth) ? 1 : Math.max(1, Math.round(calculatedWidth)),
         height: isNaN(calculatedHeight) ? 1 : Math.max(1, Math.round(calculatedHeight)),
         rotation: Math.round(target.angle || 0),
@@ -247,9 +233,12 @@ export const useElementsSync = ({
       if (recentlyModifiedRef.current.has(element.id)) return;
       const canvasObj = canvas.getObjects().find((obj: any) => obj.data?.id === element.id);
       if (!canvasObj) return;
+      // Element x,y are now center coordinates
       canvasObj.set({
         left: element.x,
         top: element.y,
+        originX: 'center',
+        originY: 'center',
         angle: element.rotation || 0,
       });
 
